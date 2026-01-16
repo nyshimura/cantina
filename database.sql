@@ -1,10 +1,16 @@
--- PHP MySQL Dump
--- Cantina Digital System
--- Versão Limpa para GitHub
+-- phpMyAdmin SQL Dump
+-- version 5.2.2
+-- https://www.phpmyadmin.net/
+--
+-- Host: 127.0.0.1:3306
+-- Tempo de geração: 16/01/2026 às 23:35
+-- Versão do servidor: 11.8.3-MariaDB-log
+-- Versão do PHP: 7.2.34
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
 SET time_zone = "+00:00";
+
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -31,6 +37,19 @@ CREATE TABLE `audit_logs` (
   `timestamp` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+--
+-- Despejando dados para a tabela `audit_logs`
+--
+
+INSERT INTO `audit_logs` (`id`, `operator_id`, `action`, `description`, `impact`, `ip_address`, `timestamp`) VALUES
+(1, NULL, 'LOGIN_FAILED', 'Tentativa de login falhada para o e-mail: admin@cantina.com', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:22:42'),
+(2, NULL, 'LOGIN_FAILED', 'Tentativa de login falhada para o e-mail: admin@cantina.com', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:22:57'),
+(3, NULL, 'LOGIN_FAILED', 'Tentativa de login falhada para o e-mail: admin@cantina.com', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:32:33'),
+(4, NULL, 'LOGIN_FAILED', 'Tentativa de login falhada para o e-mail: admin@cantina.com', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:33:05'),
+(5, NULL, 'LOGIN_FAILED', 'Tentativa de login falhada para o e-mail: admin@cantina.com', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:33:13'),
+(6, 1, 'LOGIN_SUCCESS', 'O operador Administrador logou no sistema.', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:34:27'),
+(7, 1, 'LOGIN_SUCCESS', 'O operador Administrador logou no sistema.', NULL, '2804:1b3:aa40:e5a:3d4d:7a2b:ae6c:7022', '2026-01-16 23:34:59');
+
 -- --------------------------------------------------------
 
 --
@@ -44,7 +63,7 @@ CREATE TABLE `categories` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados padrão para `categories`
+-- Despejando dados para a tabela `categories`
 --
 
 INSERT INTO `categories` (`id`, `name`, `active`) VALUES
@@ -87,13 +106,11 @@ CREATE TABLE `operators` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados padrão para `operators` (Admin / admin)
--- Senha 'admin' hash gerado: $2y$10$8sA.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N (Exemplo simulado, para produção recomenda-se redefinir)
--- Para este dump, estamos usando um hash válido para a senha 'admin'
+-- Despejando dados para a tabela `operators`
 --
 
 INSERT INTO `operators` (`id`, `name`, `email`, `password_hash`, `access_level`, `permissions`, `active`, `created_at`) VALUES
-(1, 'Administrador', 'admin@cantina.com', '$2y$10$u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.', 'ADMIN', '{\"canViewDashboard\": true, \"canManageSettings\": true, \"canManageFinancial\": true, \"canManageStudents\": true, \"canManageParents\": true, \"canManageTags\": true, \"canManageTeam\": true, \"canViewLogs\": true}', 1, NOW());
+(1, 'Administrador', 'admin@cantina.com', '$2y$10$Zp9qRlSfZKhjkDzaBxDV4Oy0LbWpIzNrcxLynSKokdx12X8TFwkKS', 'ADMIN', '{\"canViewDashboard\": true, \"canManageSettings\": true, \"canManageFinancial\": true, \"canManageStudents\": true, \"canManageParents\": true, \"canManageTags\": true, \"canManageTeam\": true, \"canViewLogs\": true}', 1, '2026-01-16 23:22:24');
 
 -- --------------------------------------------------------
 
@@ -128,7 +145,7 @@ CREATE TABLE `products` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados de exemplo para `products`
+-- Despejando dados para a tabela `products`
 --
 
 INSERT INTO `products` (`id`, `name`, `price`, `image_url`, `active`, `category_id`) VALUES
@@ -182,7 +199,7 @@ CREATE TABLE `system_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados padrão para `system_settings`
+-- Despejando dados para a tabela `system_settings`
 --
 
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
@@ -233,51 +250,171 @@ CREATE TABLE `transaction_items` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Índices e AUTO_INCREMENT
+-- Índices para tabelas despejadas
 --
 
-ALTER TABLE `audit_logs` ADD PRIMARY KEY (`id`);
-ALTER TABLE `categories` ADD PRIMARY KEY (`id`);
-ALTER TABLE `nfc_tags` ADD PRIMARY KEY (`tag_id`), ADD KEY `current_student_id` (`current_student_id`), ADD KEY `parent_owner_id` (`parent_owner_id`);
-ALTER TABLE `operators` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
-ALTER TABLE `parents` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
-ALTER TABLE `products` ADD PRIMARY KEY (`id`);
-ALTER TABLE `students` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`), ADD KEY `parent_id` (`parent_id`);
-ALTER TABLE `student_co_parents` ADD PRIMARY KEY (`student_id`,`parent_id`), ADD KEY `parent_id` (`parent_id`);
-ALTER TABLE `system_settings` ADD PRIMARY KEY (`setting_key`);
-ALTER TABLE `transactions` ADD PRIMARY KEY (`id`), ADD KEY `student_id` (`student_id`);
-ALTER TABLE `transaction_items` ADD PRIMARY KEY (`id`), ADD KEY `transaction_id` (`transaction_id`);
-
-ALTER TABLE `audit_logs` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `categories` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-ALTER TABLE `operators` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-ALTER TABLE `parents` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `products` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-ALTER TABLE `students` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `transactions` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `transaction_items` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+--
+-- Índices de tabela `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  ADD PRIMARY KEY (`id`);
 
 --
--- Restrições (Foreign Keys)
+-- Índices de tabela `categories`
+--
+ALTER TABLE `categories`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Índices de tabela `nfc_tags`
+--
+ALTER TABLE `nfc_tags`
+  ADD PRIMARY KEY (`tag_id`),
+  ADD KEY `current_student_id` (`current_student_id`),
+  ADD KEY `parent_owner_id` (`parent_owner_id`);
+
+--
+-- Índices de tabela `operators`
+--
+ALTER TABLE `operators`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
+-- Índices de tabela `parents`
+--
+ALTER TABLE `parents`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`);
+
+--
+-- Índices de tabela `products`
+--
+ALTER TABLE `products`
+  ADD PRIMARY KEY (`id`);
+
+--
+-- Índices de tabela `students`
+--
+ALTER TABLE `students`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `email` (`email`),
+  ADD KEY `parent_id` (`parent_id`);
+
+--
+-- Índices de tabela `student_co_parents`
+--
+ALTER TABLE `student_co_parents`
+  ADD PRIMARY KEY (`student_id`,`parent_id`),
+  ADD KEY `parent_id` (`parent_id`);
+
+--
+-- Índices de tabela `system_settings`
+--
+ALTER TABLE `system_settings`
+  ADD PRIMARY KEY (`setting_key`);
+
+--
+-- Índices de tabela `transactions`
+--
+ALTER TABLE `transactions`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `student_id` (`student_id`);
+
+--
+-- Índices de tabela `transaction_items`
+--
+ALTER TABLE `transaction_items`
+  ADD PRIMARY KEY (`id`),
+  ADD KEY `transaction_id` (`transaction_id`);
+
+--
+-- AUTO_INCREMENT para tabelas despejadas
 --
 
+--
+-- AUTO_INCREMENT de tabela `audit_logs`
+--
+ALTER TABLE `audit_logs`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+
+--
+-- AUTO_INCREMENT de tabela `categories`
+--
+ALTER TABLE `categories`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+
+--
+-- AUTO_INCREMENT de tabela `operators`
+--
+ALTER TABLE `operators`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+
+--
+-- AUTO_INCREMENT de tabela `parents`
+--
+ALTER TABLE `parents`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `products`
+--
+ALTER TABLE `products`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
+
+--
+-- AUTO_INCREMENT de tabela `students`
+--
+ALTER TABLE `students`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `transactions`
+--
+ALTER TABLE `transactions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de tabela `transaction_items`
+--
+ALTER TABLE `transaction_items`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- Restrições para tabelas despejadas
+--
+
+--
+-- Restrições para tabelas `nfc_tags`
+--
 ALTER TABLE `nfc_tags`
   ADD CONSTRAINT `nfc_tags_ibfk_1` FOREIGN KEY (`current_student_id`) REFERENCES `students` (`id`) ON DELETE SET NULL,
   ADD CONSTRAINT `nfc_tags_ibfk_2` FOREIGN KEY (`parent_owner_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
 
+--
+-- Restrições para tabelas `students`
+--
 ALTER TABLE `students`
   ADD CONSTRAINT `students_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
 
+--
+-- Restrições para tabelas `student_co_parents`
+--
 ALTER TABLE `student_co_parents`
   ADD CONSTRAINT `student_co_parents_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE,
   ADD CONSTRAINT `student_co_parents_ibfk_2` FOREIGN KEY (`parent_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
 
+--
+-- Restrições para tabelas `transactions`
+--
 ALTER TABLE `transactions`
   ADD CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`);
 
+--
+-- Restrições para tabelas `transaction_items`
+--
 ALTER TABLE `transaction_items`
   ADD CONSTRAINT `transaction_items_ibfk_1` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`) ON DELETE CASCADE;
-
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
