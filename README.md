@@ -33,7 +33,7 @@ Este projeto visa modernizar o processo de compra e venda em cantinas escolares,
 - **Backend:** PHP (Estruturado/Vanilla)
 - **Frontend:** HTML5, CSS3, JavaScript (com jQuery)
 - **Banco de Dados:** MySQL / MariaDB
-- **Pagamentos:** SDK do Mercado Pago (PHP)
+- **Pagamentos:** [SDK do Mercado Pago](https://github.com/AndyTargino/MercadoPago-API) (PHP)
 - **Servidor Web:** Apache/Nginx (Recomendado via XAMPP/WAMP para local)
 
 ---
