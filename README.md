@@ -44,5 +44,5 @@ Siga os passos abaixo para rodar o projeto em seu ambiente local.
 
 ### 1. Clonar o Repositório
 ```bash
-git clone [https://github.com/nyshimura/cantina.git](https://github.com/nyshimura/cantina.git)
+git clone https://github.com/nyshimura/cantina.git
 cd cantina
