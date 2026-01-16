@@ -1,0 +1,30 @@
+[2026-01-16 00:48:37] Processando ID: 142231606168
+[2026-01-16 00:48:37] Processando ID: 142231606168
+[2026-01-16 00:48:37] Status: pending | Ref:  | Valor: 1
+[2026-01-16 00:48:37] Status: pending | Ref:  | Valor: 1
+[2026-01-16 00:48:57] Processando ID: 142231606168
+[2026-01-16 00:48:58] Processando ID: 142231606168
+[2026-01-16 00:48:58] Status: approved | Ref:  | Valor: 1
+[2026-01-16 00:48:58] Erro: Transação não encontrada no banco.
+[2026-01-16 00:48:58] Status: approved | Ref:  | Valor: 1
+[2026-01-16 00:48:58] Erro: Transação não encontrada no banco.
+[2026-01-16 01:00:57] Processando ID: 141561726753
+[2026-01-16 01:00:57] Status: approved | Ref:  | Valor: 2
+[2026-01-16 01:00:57] Erro: Transação não encontrada no banco.
+[2026-01-16 01:01:30] Processando ID: 141561726753
+[2026-01-16 01:01:30] Status: approved | Ref:  | Valor: 2
+[2026-01-16 01:01:30] Erro: Transação não encontrada no banco.
+[2026-01-16 01:02:46] Notificação Recebida. Payment ID: 142231458858
+[2026-01-16 01:02:46] Notificação Recebida. Payment ID: 142231458858
+[2026-01-16 01:02:46] Status MP: pending | Ref: REC-6-1768536165 | Valor: 1
+[2026-01-16 01:02:46] Status MP: pending | Ref: REC-6-1768536165 | Valor: 1
+[2026-01-16 01:03:12] Notificação Recebida. Payment ID: 142231458858
+[2026-01-16 01:03:12] Status MP: approved | Ref: REC-6-1768536165 | Valor: 1
+[2026-01-16 01:03:12] SUCESSO: Saldo atualizado na nfc_tags para aluno 6
+[2026-01-16 01:03:12] Notificação Recebida. Payment ID: 142231458858
+[2026-01-16 01:03:13] Status MP: approved | Ref: REC-6-1768536165 | Valor: 1
+[2026-01-16 01:03:13] Ignorado: Transação já estava paga.
+[2026-01-16 19:43:13] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 19:43:13] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 19:43:13] Status MP: pending | Ref: REC-1-1768603392 | Valor: 2
+[2026-01-16 19:43:13] Status MP: pending | Ref: REC-1-1768603392 | Valor: 2

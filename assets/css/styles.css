@@ -1,0 +1,37 @@
+
+/* Global Font Family */
+body {
+  font-family: 'Inter', sans-serif;
+}
+
+/* Global App-like Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.chart-container-lg {
+  width: 100%;
+  height: 320px;
+  min-height: 320px;
+}
+
+.chart-container-sm {
+  width: 100%;
+  height: 200px;
+  min-height: 200px;
+}
