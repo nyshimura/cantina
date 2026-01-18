@@ -48,4 +48,7 @@ git clone https://github.com/nyshimura/cantina.git
 cd cantina
 ```
 
-### 2. Importar a basededados.sql
+### 2. Importar a Base de dados
+```bash 
+database.sql
+```
