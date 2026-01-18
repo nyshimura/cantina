@@ -46,3 +46,6 @@ Siga os passos abaixo para rodar o projeto em seu ambiente local.
 ```bash
 git clone https://github.com/nyshimura/cantina.git
 cd cantina
+```
+
+### 2. Importar a basededados.sql
