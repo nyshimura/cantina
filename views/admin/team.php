@@ -1,4 +1,5 @@
 <?php
+// views/admin/team.php
 require_once __DIR__ . '/../../includes/auth.php';
 requireRole('OPERATOR');
 requirePermission('canManageTeam');
@@ -11,11 +12,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($action === 'add') {
+            // Agora aceita a senha enviada pelo form
+            $password = $input['password'] ?? '123'; // Fallback de segurança
+            
             $stmt = $pdo->prepare("INSERT INTO operators (name, email, password_hash, access_level, permissions) VALUES (?, ?, ?, ?, ?)");
-            $stmt->execute([$input['name'], $input['email'], password_hash('123', PASSWORD_DEFAULT), $input['role'], '{}']);
+            $stmt->execute([
+                $input['name'], 
+                $input['email'], 
+                password_hash($password, PASSWORD_DEFAULT), 
+                $input['role'], 
+                '{}'
+            ]);
         } 
+        elseif ($action === 'change_password') {
+            // Nova ação para trocar senha
+            if (empty($input['new_password'])) throw new Exception("A nova senha não pode estar vazia.");
+            
+            $stmt = $pdo->prepare("UPDATE operators SET password_hash = ? WHERE id = ?");
+            $stmt->execute([
+                password_hash($input['new_password'], PASSWORD_DEFAULT), 
+                $input['id']
+            ]);
+        }
         elseif ($action === 'update_perms') {
-            // Salva as permissões como JSON
             $stmt = $pdo->prepare("UPDATE operators SET permissions = ? WHERE id = ?");
             $stmt->execute([json_encode($input['perms']), $input['id']]);
         }
@@ -33,13 +52,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+// --- VISUALIZAÇÃO ---
 $statusFilter = $_GET['status'] ?? 'ativos';
 $sql = "SELECT * FROM operators WHERE 1=1";
 if ($statusFilter === 'ativos') $sql .= " AND active = 1";
 elseif ($statusFilter === 'inativos') $sql .= " AND active = 0";
 $operators = $pdo->query($sql . " ORDER BY name ASC")->fetchAll();
 
-// --- LÓGICA DE PERMISSÕES (Para o menu mobile) ---
+// --- LÓGICA MOBILE ---
 $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
 $permsRaw  = $_SESSION['permissions'] ?? '{}';
 $perms = json_decode($permsRaw, true);
@@ -74,7 +94,6 @@ require __DIR__ . '/../../includes/header.php';
                 echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
                 echo "</a>";
             }
-
             renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
             renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
             renderMobileLink('canManageFinancial', 'financial.php', 'Financeiro', 'dollar-sign', $currentPage);
@@ -97,7 +116,7 @@ require __DIR__ . '/../../includes/header.php';
                 <header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8 md:mb-10">
                     <div>
                         <h1 class="text-2xl md:text-3xl font-bold text-slate-800">Equipe de Operadores</h1>
-                        <p class="text-slate-500 mt-1 text-sm md:text-base">Gerencie quem tem acesso ao painel e defina permissões específicas.</p>
+                        <p class="text-slate-500 mt-1 text-sm md:text-base">Gerencie quem tem acesso ao painel e defina permissões.</p>
                     </div>
                     <button onclick="document.getElementById('modalAdd').classList.replace('hidden', 'flex')" class="w-full md:w-auto bg-emerald-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-emerald-700 shadow-lg flex items-center justify-center gap-2 transition-all active:scale-95">
                         <i data-lucide="plus-circle" class="w-5 h-5"></i> Novo Operador
@@ -111,7 +130,14 @@ require __DIR__ . '/../../includes/header.php';
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <?php foreach($operators as $op): ?>
-                    <div onclick='openPermsModal(<?= json_encode($op) ?>)' class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 border-l-4 <?= $op['access_level'] === 'ADMIN' ? 'border-l-amber-500' : 'border-l-slate-400' ?> flex flex-col justify-between cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group">
+                    <div onclick='openPermsModal(<?= json_encode($op) ?>)' class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 border-l-4 <?= $op['access_level'] === 'ADMIN' ? 'border-l-amber-500' : 'border-l-slate-400' ?> flex flex-col justify-between cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group relative">
+                        
+                        <div class="absolute top-4 right-4 z-10">
+                            <button onclick="event.stopPropagation(); openPasswordModal(<?= $op['id'] ?>, '<?= htmlspecialchars($op['name'], ENT_QUOTES) ?>')" class="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Trocar Senha">
+                                <i data-lucide="key" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+
                         <div class="flex justify-between items-start">
                             <div>
                                 <h3 class="font-bold text-slate-800 text-lg group-hover:text-emerald-600 transition-colors leading-tight mb-1"><?= htmlspecialchars($op['name']) ?></h3>
@@ -139,99 +165,101 @@ require __DIR__ . '/../../includes/header.php';
         </main>
     </div>
 
-    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 h-[70px] flex items-center justify-around z-50 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] px-2">
-        <a href="pos.php" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-slate-600">
-            <i data-lucide="credit-card" class="w-6 h-6"></i>
-            <span class="text-[10px] font-bold">Venda</span>
-        </a>
-        <a href="history.php" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-slate-600">
-            <i data-lucide="list" class="w-6 h-6"></i>
-            <span class="text-[10px] font-bold">Histórico</span>
-        </a>
-        <a href="products.php" class="flex flex-col items-center gap-1 p-2 text-slate-400 hover:text-slate-600">
-            <i data-lucide="package" class="w-6 h-6"></i>
-            <span class="text-[10px] font-bold">Produtos</span>
-        </a>
-        <a href="dashboard.php" class="flex flex-col items-center gap-1 p-2 text-emerald-600">
-            <i data-lucide="settings" class="w-6 h-6"></i>
-            <span class="text-[10px] font-bold">Gestão</span>
-        </a>
-    </div>
-
-</div>
-
-<div id="modalAdd" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
-        <h3 class="text-2xl font-bold text-slate-800 mb-6 tracking-tight">Novo Membro</h3>
-        <form onsubmit="event.preventDefault(); handleTeamAction('add', {name: document.getElementById('addName').value, email: document.getElementById('addEmail').value, role: document.getElementById('addRole').value}, this.querySelector('button'))" class="space-y-4">
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nome Completo</label>
-                <input type="text" id="addName" required class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold text-slate-700">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail de Acesso</label>
-                <input type="email" id="addEmail" required class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold text-slate-700">
-            </div>
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nível Hierárquico</label>
-                <select id="addRole" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white font-bold text-slate-700">
-                    <option value="CASHIER">CASHIER (Operador de Caixa)</option>
-                    <option value="ADMIN">ADMIN (Acesso Total)</option>
-                </select>
-            </div>
-            <p class="text-[10px] text-slate-400 italic px-1">Nota: A senha padrão inicial será '123'.</p>
-            <button type="submit" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 shadow-xl shadow-emerald-100 mt-4 active:scale-95 transition-all">Cadastrar Operador</button>
-            <button type="button" onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Cancelar</button>
-        </form>
-    </div>
-</div>
-
-<div id="modalPerms" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
-        <h3 class="text-2xl font-bold text-slate-800 mb-1 tracking-tight">Permissões de Acesso</h3>
-        <p id="permOpName" class="text-sm text-emerald-600 mb-8 font-black uppercase tracking-widest"></p>
-        
-        <form id="formPerms" class="space-y-2">
-            <?php 
-            $labels = [
-                'canViewDashboard' => 'Visualizar Dashboard',
-                'canManageSettings' => 'Configurações do Sistema',
-                'canManageFinancial' => 'Aprovações Financeiras',
-                'canManageStudents' => 'Gestão de Alunos',
-                'canManageParents' => 'Gestão de Responsáveis',
-                'canManageTags' => 'Gestão de Tags NFC',
-                'canManageTeam' => 'Gestão da Equipe',
-                'canViewLogs' => 'Logs de Auditoria'
-            ];
-            foreach($labels as $key => $label): ?>
-            <label class="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-all group">
-                <span class="text-sm font-bold text-slate-600 group-hover:text-slate-800"><?= $label ?></span>
-                <input type="checkbox" name="<?= $key ?>" class="w-5 h-5 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-all">
-            </label>
-            <?php endforeach; ?>
-
-            <div class="pt-6 flex flex-col gap-2">
-                <button type="submit" id="btnSavePerms" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95">Atualizar Acessos</button>
-                <button type="button" onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Fechar</button>
-            </div>
-        </form>
-    </div>
-</div>
-
-<div id="modalSafety" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
-    <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl p-10 text-center animate-in fade-in zoom-in duration-200">
-        <div id="safetyIconContainer" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><i id="safetyIcon" data-lucide="alert-circle" class="w-10 h-10"></i></div>
-        <h3 id="safetyTitle" class="text-2xl font-bold text-slate-800 mb-3 tracking-tight"></h3>
-        <p class="text-slate-500 mb-10 text-sm leading-relaxed">Você está prestes a <span id="safetyActionText" class="font-bold"></span> o acesso de <span id="safetyName" class="font-bold text-slate-800"></span>.</p>
-        <div class="bg-slate-50 p-5 rounded-2xl text-left flex gap-4 mb-10 border border-slate-100">
-            <input type="checkbox" id="safetyCheck" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-5 h-5 shrink-0">
-            <label for="safetyCheck" id="safetyCheckLabel" class="text-xs text-slate-600 leading-relaxed font-medium">Confirmo que entendo as consequências desta alteração de status.</label>
-        </div>
-        <div class="flex flex-col gap-3">
-            <button id="btnConfirmSafety" disabled class="w-full py-5 rounded-2xl font-bold transition-all cursor-not-allowed text-white shadow-xl">Confirmar Ação</button>
-            <button onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-700 transition-colors">Cancelar</button>
+    <div id="modalAdd" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <h3 class="text-2xl font-bold text-slate-800 mb-6 tracking-tight">Novo Membro</h3>
+            <form onsubmit="event.preventDefault(); handleTeamAction('add', {name: document.getElementById('addName').value, email: document.getElementById('addEmail').value, password: document.getElementById('addPassword').value, role: document.getElementById('addRole').value}, this.querySelector('button'))" class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nome Completo</label>
+                    <input type="text" id="addName" required class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail de Acesso</label>
+                    <input type="email" id="addEmail" required class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha de Acesso</label>
+                    <input type="password" id="addPassword" required placeholder="Crie uma senha inicial" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold text-slate-700">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Nível Hierárquico</label>
+                    <select id="addRole" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all bg-white font-bold text-slate-700">
+                        <option value="CASHIER">CASHIER (Operador de Caixa)</option>
+                        <option value="ADMIN">ADMIN (Acesso Total)</option>
+                    </select>
+                </div>
+                <button type="submit" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 shadow-xl shadow-emerald-100 mt-4 active:scale-95 transition-all">Cadastrar Operador</button>
+                <button type="button" onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Cancelar</button>
+            </form>
         </div>
     </div>
+
+    <div id="modalPassword" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6 shadow-inner">
+                <i data-lucide="key" class="w-8 h-8"></i>
+            </div>
+            <h3 class="text-2xl font-bold text-slate-800 mb-2 tracking-tight text-center">Trocar Senha</h3>
+            <p id="passwordOpName" class="text-center text-slate-400 text-xs font-bold uppercase tracking-widest mb-6"></p>
+            
+            <form onsubmit="event.preventDefault(); handleTeamAction('change_password', {id: currentOpId, new_password: document.getElementById('newPassword').value}, this.querySelector('button'))" class="space-y-4">
+                <div>
+                    <input type="password" id="newPassword" required placeholder="Nova Senha" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 text-center">
+                </div>
+                <button type="submit" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-bold hover:bg-blue-700 shadow-xl shadow-blue-100 mt-4 active:scale-95 transition-all">Atualizar Senha</button>
+                <button type="button" onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Cancelar</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalPerms" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <h3 class="text-2xl font-bold text-slate-800 mb-1 tracking-tight">Permissões de Acesso</h3>
+            <p id="permOpName" class="text-sm text-emerald-600 mb-8 font-black uppercase tracking-widest"></p>
+            
+            <form id="formPerms" class="space-y-2">
+                <?php 
+                $labels = [
+                    'canViewDashboard' => 'Visualizar Dashboard',
+                    'canManageSettings' => 'Configurações do Sistema',
+                    'canManageFinancial' => 'Aprovações Financeiras',
+                    'canManageStudents' => 'Gestão de Alunos',
+                    'canManageParents' => 'Gestão de Responsáveis',
+                    'canManageTags' => 'Gestão de Tags NFC',
+                    'canManageTeam' => 'Gestão da Equipe',
+                    'canViewLogs' => 'Logs de Auditoria'
+                ];
+                foreach($labels as $key => $label): ?>
+                <label class="flex items-center justify-between p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 cursor-pointer transition-all group">
+                    <span class="text-sm font-bold text-slate-600 group-hover:text-slate-800"><?= $label ?></span>
+                    <input type="checkbox" name="<?= $key ?>" class="w-5 h-5 rounded-md border-slate-300 text-emerald-600 focus:ring-emerald-500 transition-all">
+                </label>
+                <?php endforeach; ?>
+
+                <div class="pt-6 flex flex-col gap-2">
+                    <button type="submit" id="btnSavePerms" class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-bold hover:bg-emerald-700 shadow-xl shadow-emerald-100 transition-all active:scale-95">Atualizar Acessos</button>
+                    <button type="button" onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-600 transition-colors">Fechar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="modalSafety" class="fixed inset-0 bg-slate-900/50 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl p-10 text-center animate-in fade-in zoom-in duration-200">
+            <div id="safetyIconContainer" class="w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner"><i id="safetyIcon" data-lucide="alert-circle" class="w-10 h-10"></i></div>
+            <h3 id="safetyTitle" class="text-2xl font-bold text-slate-800 mb-3 tracking-tight"></h3>
+            <p class="text-slate-500 mb-10 text-sm leading-relaxed">Você está prestes a <span id="safetyActionText" class="font-bold"></span> o acesso de <span id="safetyName" class="font-bold text-slate-800"></span>.</p>
+            <div class="bg-slate-50 p-5 rounded-2xl text-left flex gap-4 mb-10 border border-slate-100">
+                <input type="checkbox" id="safetyCheck" class="mt-1 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-5 h-5 shrink-0">
+                <label for="safetyCheck" id="safetyCheckLabel" class="text-xs text-slate-600 leading-relaxed font-medium">Confirmo que entendo as consequências desta alteração de status.</label>
+            </div>
+            <div class="flex flex-col gap-3">
+                <button id="btnConfirmSafety" disabled class="w-full py-5 rounded-2xl font-bold transition-all cursor-not-allowed text-white shadow-xl">Confirmar Ação</button>
+                <button onclick="closeModals()" class="w-full py-2 text-slate-400 font-bold uppercase text-[10px] tracking-widest hover:text-slate-700 transition-colors">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
 </div>
 
 <script>
@@ -240,11 +268,13 @@ require __DIR__ . '/../../includes/header.php';
 
     function closeModals() { 
         document.querySelectorAll('.fixed').forEach(m => {
-            // Ignora o menu mobile inferior
             if (m.id && m.id.startsWith('modal')) {
                 m.classList.replace('flex', 'hidden');
             }
         }); 
+        // Limpar campos de senha por segurança
+        if(document.getElementById('newPassword')) document.getElementById('newPassword').value = '';
+        if(document.getElementById('addPassword')) document.getElementById('addPassword').value = '';
     }
 
     async function handleTeamAction(action, data, btn) {
@@ -283,6 +313,12 @@ require __DIR__ . '/../../includes/header.php';
         });
 
         document.getElementById('modalPerms').classList.replace('hidden', 'flex');
+    }
+
+    function openPasswordModal(id, name) {
+        currentOpId = id;
+        document.getElementById('passwordOpName').innerText = name;
+        document.getElementById('modalPassword').classList.replace('hidden', 'flex');
     }
 
     document.getElementById('formPerms').onsubmit = (e) => {

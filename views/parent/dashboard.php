@@ -327,9 +327,7 @@ require __DIR__ . '/../../includes/header.php';
             <h2 class="font-black text-slate-800 italic">Meus Co-Responsáveis</h2>
         </div>
         <div class="coparent-list">
-            <div class="p-4 rounded-2xl border border-emerald-100 bg-emerald-50/30 flex items-center justify-between shrink-0">
-                <div><p class="text-sm font-black text-slate-800 italic"><?= $_SESSION['name'] ?> <span class="text-[9px] bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full uppercase ml-1">Você</span></p><p class="text-xs text-slate-400 font-medium"><?= $_SESSION['email'] ?></p></div>
-            </div>
+
             <?php foreach ($coParents as $cp): $isActive = $cp['active'] == 1; ?>
                 <div class="coparent-item p-4 rounded-2xl border border-slate-100 bg-white hover:border-emerald-200 transition-colors flex items-center justify-between group shrink-0 <?= !$isActive ? 'inactive' : '' ?>">
                     <div>

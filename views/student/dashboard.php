@@ -6,7 +6,7 @@ requireRole('STUDENT');
 $studentId = $_SESSION['user_id'];
 
 try {
-    // 1. Fetch data and TAG ID (tag_id)
+    // 1. Busca dados do aluno
     $stmt = $pdo->prepare("
         SELECT s.*, COALESCE(n.balance, 0) as balance, n.tag_id as nfc_id
         FROM students s
@@ -18,10 +18,46 @@ try {
 
     if (!$student) die("Erro: Aluno não encontrado.");
 
-    // AQUI: Força o avatar automático baseado no nome (DiceBear Adventurer)
     $student['avatar_url'] = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' . urlencode($student['name']);
 
-    // 2. Fetch history (Includes COMPLETED, REFUNDED, and CANCELLED)
+    // --- LÓGICA DE LIMITE DE RECARGA CORRIGIDA ---
+    $rechargeConfig = json_decode($student['recharge_config'] ?? '[]', true);
+    $limitVal = floatval($rechargeConfig['limit'] ?? 0);
+    $limitPeriod = $rechargeConfig['period'] ?? 'Diário';
+    $currentUsage = 0;
+    $hasLimit = false;
+
+    if ($limitVal > 0) {
+        $hasLimit = true;
+        
+        // Filtro de Data (Diário ou Mensal)
+        $dateFilter = "DATE(timestamp) = CURRENT_DATE()";
+        if ($limitPeriod === 'Mensal') {
+            $dateFilter = "MONTH(timestamp) = MONTH(CURRENT_DATE()) AND YEAR(timestamp) = YEAR(CURRENT_DATE())";
+        }
+
+        // CORREÇÃO: Soma apenas COMPLETED e PENDING RECENTES (últimos 30 min)
+        // Isso evita que tentativas de Pix abandonadas bloqueiem o limite do aluno para sempre.
+        $stmtLimit = $pdo->prepare("
+            SELECT SUM(amount) 
+            FROM transactions 
+            WHERE student_id = ? 
+            AND type = 'DEPOSIT' 
+            AND $dateFilter
+            AND (
+                status = 'COMPLETED' 
+                OR (status = 'PENDING' AND timestamp >= DATE_SUB(NOW(), INTERVAL 30 MINUTE))
+            )
+        ");
+        $stmtLimit->execute([$studentId]);
+        $currentUsage = floatval($stmtLimit->fetchColumn() ?: 0);
+    }
+    
+    // Garante que não mostre valor negativo
+    $remainingLimit = max(0, $limitVal - $currentUsage);
+    // ---------------------------------------------------
+
+    // 2. Histórico
     $stmtH = $pdo->prepare("
         SELECT timestamp, items_summary as display_desc, type, amount, status 
         FROM transactions 
@@ -43,11 +79,9 @@ require __DIR__ . '/../../includes/header.php';
 <style>
     html, body { 
         background-color: #f8fafc; 
-        overflow-x: hidden; /* Impede rolagem horizontal indesejada */
+        overflow-x: hidden;
         height: 100%;
     }
-    
-    /* Rolagem suave e personalizada */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
@@ -57,7 +91,7 @@ require __DIR__ . '/../../includes/header.php';
         display: none;
         position: fixed; inset: 0; z-index: 100;
         align-items: center; justify-content: center; padding: 2vh;
-        overflow-y: auto; /* Permite rolar modal se for muito alto */
+        overflow-y: auto;
     }
     .modal-overlay.active { display: flex; }
 
@@ -66,11 +100,10 @@ require __DIR__ . '/../../includes/header.php';
         background: white; border-radius: 2rem; padding: 2rem; 
         box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
         animation: modalIn 0.2s ease-out;
-        margin: auto; /* Centraliza no scroll do modal */
+        margin: auto;
     }
     @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
 
-    /* Cartão Preto */
     .credit-card {
         background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         box-shadow: 0 20px 25px -5px rgba(15, 23, 42, 0.3);
@@ -125,8 +158,8 @@ require __DIR__ . '/../../includes/header.php';
                 <?php endif; ?>
                 
                 <div class="bg-white border border-slate-100 py-4 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-sm">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Limite Diário</span>
-                    <span class="text-lg font-black text-slate-700">R$ <?= number_format($student['daily_limit'], 2, ',', '.') ?></span>
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Limite <?= ucfirst($limitPeriod) ?></span>
+                    <span class="text-lg font-black text-slate-700">R$ <?= number_format($limitVal, 2, ',', '.') ?></span>
                 </div>
             </div>
             
@@ -139,7 +172,8 @@ require __DIR__ . '/../../includes/header.php';
                 <h2 class="text-xl font-black text-slate-800 italic">Últimas Movimentações</h2>
             </div>
             
-            <div class="flex-1 overflow-y-auto pr-1"> <?php if(empty($txs)): ?>
+            <div class="flex-1 overflow-y-auto pr-1"> 
+                <?php if(empty($txs)): ?>
                     <div class="flex flex-col items-center justify-center h-64 text-slate-300">
                         <i data-lucide="inbox" class="w-12 h-12 mb-2"></i>
                         <p class="font-bold text-sm">Nenhuma movimentação ainda.</p>
@@ -239,6 +273,17 @@ require __DIR__ . '/../../includes/header.php';
                 <span class="absolute left-1/2 -translate-x-[60px] top-1/2 -translate-y-1/2 font-black text-slate-300 text-2xl">R$</span>
                 <input type="number" id="pixAmount" class="w-full text-center text-4xl font-black text-slate-700 bg-transparent outline-none placeholder-slate-200" placeholder="0,00" step="0.05">
             </div>
+            
+            <?php if($hasLimit): ?>
+                <div id="limitInfo" class="mb-4">
+                    <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">
+                        Limite Restante: R$ <span class="text-emerald-500"><?= number_format($remainingLimit, 2, ',', '.') ?></span> (<?= $limitPeriod ?>)
+                    </p>
+                </div>
+            <?php endif; ?>
+            
+            <div id="rechargeError" class="hidden mb-4 p-3 bg-red-50 text-red-500 text-xs font-bold rounded-xl border border-red-100"></div>
+
             <button onclick="generatePix()" class="w-full bg-slate-800 text-white font-bold py-4 rounded-xl hover:bg-slate-900 transition-all shadow-lg">Gerar QR Code</button>
         </div>
 
@@ -275,38 +320,39 @@ require __DIR__ . '/../../includes/header.php';
 
 <script>
     let statusInterval;
-    function openModal(id) { document.getElementById(id).classList.add('active'); }
+    function openModal(id) { 
+        document.getElementById(id).classList.add('active'); 
+        if(id === 'modalRecharge') {
+            document.getElementById('rechargeError').classList.add('hidden'); // Limpa erros anteriores
+            document.getElementById('pixAmount').value = '';
+        }
+    }
     function closeModal(id) { document.getElementById(id).classList.remove('active'); if(statusInterval) clearInterval(statusInterval); }
 
-    async function handleFormSubmit(e, api) {
-        e.preventDefault();
-        const btn = e.target.querySelector('.submit-btn');
-        const oldText = btn.textContent;
-        btn.textContent = 'Salvando...'; btn.disabled = true;
-        const fd = new FormData(e.target);
-        try {
-            const res = await fetch('../../api/' + api, { method: 'POST', body: fd });
-            const data = await res.json();
-            if(data.success) { btn.textContent = 'Sucesso!'; btn.classList.replace('bg-emerald-500', 'bg-emerald-700'); setTimeout(() => location.reload(), 1000); } 
-            else { alert(data.message); btn.textContent = oldText; btn.disabled = false; }
-        } catch(err) { alert('Erro de conexão'); btn.disabled = false; }
-    }
-
-    // Função Visual de Cópia
-    function copyPixCode() {
-        const copyText = document.getElementById("copyPaste");
-        copyText.select();
-        copyText.setSelectionRange(0, 99999); // Mobile
-        document.execCommand("copy");
-
-        const feedback = document.getElementById('copyFeedback');
-        feedback.classList.remove('hidden');
-        setTimeout(() => feedback.classList.add('hidden'), 3000);
-    }
+    // VARIÁVEIS INJETADAS PELO PHP PARA O JS
+    const hasLimit = <?= $hasLimit ? 'true' : 'false' ?>;
+    const remainingLimit = <?= $remainingLimit ?>;
+    const limitPeriod = "<?= $limitPeriod ?>";
 
     async function generatePix() {
-        const val = document.getElementById('pixAmount').value;
-        if(!val || val <= 0) return alert('Digite um valor válido');
+        const amountInput = document.getElementById('pixAmount');
+        const errorBox = document.getElementById('rechargeError');
+        const val = parseFloat(amountInput.value);
+        
+        errorBox.classList.add('hidden'); // Reseta erro
+
+        if(!val || val <= 0) {
+            errorBox.textContent = 'Digite um valor válido.';
+            errorBox.classList.remove('hidden');
+            return;
+        }
+        
+        // VERIFICAÇÃO DE LIMITE VISUAL
+        if (hasLimit && val > remainingLimit) {
+            errorBox.textContent = `Limite excedido! Máximo permitido: R$ ${remainingLimit.toFixed(2).replace('.', ',')}`;
+            errorBox.classList.remove('hidden');
+            return;
+        }
         
         const btn = document.querySelector('#stepAmount button');
         const oldText = btn.textContent;
@@ -339,13 +385,39 @@ require __DIR__ . '/../../includes/header.php';
                 document.getElementById('copyPaste').value = data.copy_paste;
                 startStatusPolling(data.external_reference);
             } else {
-                alert('Erro: ' + data.message);
+                errorBox.textContent = 'Erro: ' + data.message;
+                errorBox.classList.remove('hidden');
                 btn.textContent = oldText; btn.disabled = false;
             }
         } catch(e) {
-            alert('Erro de conexão');
+            errorBox.textContent = 'Erro de conexão com o servidor.';
+            errorBox.classList.remove('hidden');
             btn.textContent = oldText; btn.disabled = false;
         }
+    }
+
+    async function handleFormSubmit(e, api) {
+        e.preventDefault();
+        const btn = e.target.querySelector('.submit-btn');
+        const oldText = btn.textContent;
+        btn.textContent = 'Salvando...'; btn.disabled = true;
+        const fd = new FormData(e.target);
+        try {
+            const res = await fetch('../../api/' + api, { method: 'POST', body: fd });
+            const data = await res.json();
+            if(data.success) { btn.textContent = 'Sucesso!'; btn.classList.replace('bg-emerald-500', 'bg-emerald-700'); setTimeout(() => location.reload(), 1000); } 
+            else { alert(data.message); btn.textContent = oldText; btn.disabled = false; }
+        } catch(err) { alert('Erro de conexão'); btn.disabled = false; }
+    }
+
+    function copyPixCode() {
+        const copyText = document.getElementById("copyPaste");
+        copyText.select();
+        copyText.setSelectionRange(0, 99999); 
+        document.execCommand("copy");
+        const feedback = document.getElementById('copyFeedback');
+        feedback.classList.remove('hidden');
+        setTimeout(() => feedback.classList.add('hidden'), 3000);
     }
 
     function startStatusPolling(ref) {
@@ -356,7 +428,6 @@ require __DIR__ . '/../../includes/header.php';
                 const data = await res.json();
                 if(data.status === 'COMPLETED') { 
                     clearInterval(statusInterval); 
-                    // Fechar modal de recarga e abrir o de sucesso
                     closeModal('modalRecharge');
                     openModal('modalSuccessPayment');
                 }
