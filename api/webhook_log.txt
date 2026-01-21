@@ -28,3 +28,11 @@
 [2026-01-16 19:43:13] Notificação Recebida. Payment ID: 141678311725
 [2026-01-16 19:43:13] Status MP: pending | Ref: REC-1-1768603392 | Valor: 2
 [2026-01-16 19:43:13] Status MP: pending | Ref: REC-1-1768603392 | Valor: 2
+[2026-01-16 20:18:25] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 20:18:25] Erro: Token não configurado.
+[2026-01-16 20:18:25] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 20:18:25] Erro: Token não configurado.
+[2026-01-16 20:18:33] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 20:18:33] Erro: Token não configurado.
+[2026-01-16 20:18:34] Notificação Recebida. Payment ID: 141678311725
+[2026-01-16 20:18:34] Erro: Token não configurado.
