@@ -1,6 +1,6 @@
--- PHP MySQL Dump
 -- Cantina Digital System
--- Versão Limpa para GitHub
+-- Database Schema & Default Data
+-- Versão Limpa para Distribuição (GitHub)
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -87,13 +87,13 @@ CREATE TABLE `operators` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados padrão para `operators` (Admin / admin)
--- Senha 'admin' hash gerado: $2y$10$8sA.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N.N (Exemplo simulado, para produção recomenda-se redefinir)
--- Para este dump, estamos usando um hash válido para a senha 'admin'
+-- Dados padrão para `operators`
+-- Usuário: admin@cantina.com
+-- Senha: admin
 --
 
 INSERT INTO `operators` (`id`, `name`, `email`, `password_hash`, `access_level`, `permissions`, `active`, `created_at`) VALUES
-(1, 'Administrador', 'admin@cantina.com', '$2y$10$u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.u/Kms/7.', 'ADMIN', '{\"canViewDashboard\": true, \"canManageSettings\": true, \"canManageFinancial\": true, \"canManageStudents\": true, \"canManageParents\": true, \"canManageTags\": true, \"canManageTeam\": true, \"canViewLogs\": true}', 1, NOW());
+(1, 'Administrador', 'admin@cantina.com', '$2y$10$3ae2/b.6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6', 'ADMIN', '{\"canViewDashboard\":true,\"canManageSettings\":true,\"canManageFinancial\":true,\"canManageStudents\":true,\"canManageParents\":true,\"canManageTags\":true,\"canManageTeam\":true,\"canViewLogs\":true}', 1, NOW());
 
 -- --------------------------------------------------------
 
@@ -109,6 +109,20 @@ CREATE TABLE `parents` (
   `cpf` varchar(14) NOT NULL,
   `phone` varchar(20) DEFAULT NULL,
   `active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `password_resets`
+--
+
+CREATE TABLE `password_resets` (
+  `id` int(11) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `token` varchar(64) NOT NULL,
+  `expires_at` datetime NOT NULL,
   `created_at` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -182,7 +196,7 @@ CREATE TABLE `system_settings` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Dados padrão para `system_settings`
+-- Configurações padrão (Valores sensíveis limpos)
 --
 
 INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
@@ -190,11 +204,20 @@ INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VA
 ('enable_cash_payment', '1', NULL),
 ('logo_url', '', NULL),
 ('mp_access_token', '', 'Access Token de Produção do Mercado Pago'),
+('mp_client_id', '', NULL),
+('mp_client_secret', '', NULL),
 ('mp_public_key', '', 'Public Key do Mercado Pago'),
-('payment_provider', 'MERCADO_PAGO', NULL),
+('mp_sandbox_mode', '0', NULL),
+('payment_provider', 'MANUAL_PIX', NULL),
 ('pix_key', '', NULL),
 ('pix_key_type', 'CPF', 'Tipo de chave Pix configurada'),
+('school_address', 'Endereço da Escola', NULL),
+('school_cnpj', '', NULL),
 ('school_name', 'Cantina Escolar', NULL),
+('smtp_email', '', 'E-mail remetente do sistema'),
+('smtp_host', 'smtp.gmail.com', 'Servidor SMTP para envios'),
+('smtp_password', '', 'Senha de aplicativo ou do e-mail'),
+('smtp_port', '587', 'Porta de conexão SMTP'),
 ('system_timezone', 'America/Sao_Paulo', NULL);
 
 -- --------------------------------------------------------
@@ -233,7 +256,7 @@ CREATE TABLE `transaction_items` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
--- Índices e AUTO_INCREMENT
+-- Índices
 --
 
 ALTER TABLE `audit_logs` ADD PRIMARY KEY (`id`);
@@ -241,6 +264,7 @@ ALTER TABLE `categories` ADD PRIMARY KEY (`id`);
 ALTER TABLE `nfc_tags` ADD PRIMARY KEY (`tag_id`), ADD KEY `current_student_id` (`current_student_id`), ADD KEY `parent_owner_id` (`parent_owner_id`);
 ALTER TABLE `operators` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
 ALTER TABLE `parents` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
+ALTER TABLE `password_resets` ADD PRIMARY KEY (`id`), ADD KEY `email` (`email`), ADD KEY `token` (`token`);
 ALTER TABLE `products` ADD PRIMARY KEY (`id`);
 ALTER TABLE `students` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`), ADD KEY `parent_id` (`parent_id`);
 ALTER TABLE `student_co_parents` ADD PRIMARY KEY (`student_id`,`parent_id`), ADD KEY `parent_id` (`parent_id`);
@@ -248,10 +272,15 @@ ALTER TABLE `system_settings` ADD PRIMARY KEY (`setting_key`);
 ALTER TABLE `transactions` ADD PRIMARY KEY (`id`), ADD KEY `student_id` (`student_id`);
 ALTER TABLE `transaction_items` ADD PRIMARY KEY (`id`), ADD KEY `transaction_id` (`transaction_id`);
 
+--
+-- AUTO_INCREMENT
+--
+
 ALTER TABLE `audit_logs` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `categories` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 ALTER TABLE `operators` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 ALTER TABLE `parents` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+ALTER TABLE `password_resets` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `products` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
 ALTER TABLE `students` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 ALTER TABLE `transactions` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
