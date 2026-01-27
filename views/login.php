@@ -16,15 +16,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $redirect = login($email, $password);
     
     if ($redirect) {
-        // REGISTO DE AUDITORIA: Login bem-sucedido
         logAction('LOGIN_SUCCESS', "O operador " . ($_SESSION['name'] ?? 'Usuário') . " logou no sistema.");
-        
         header("Location: " . $redirect);
         exit;
     } else {
-        // REGISTO DE AUDITORIA: Falha de segurança
         logAction('LOGIN_FAILED', "Tentativa de login falhada para o e-mail: " . $email);
-        
         $error = "Credenciais inválidas.";
     }
 }
@@ -74,6 +70,11 @@ require __DIR__ . '/../includes/header.php';
                            class="w-full pl-12 pr-4 py-3.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all font-bold" 
                            placeholder="••••••••">
                 </div>
+                <div class="text-right mt-2 mr-1">
+                    <button type="button" onclick="document.getElementById('modalForgot').classList.remove('hidden'); document.getElementById('modalForgot').classList.add('flex');" class="text-[10px] font-bold text-slate-400 hover:text-emerald-500 transition-colors uppercase tracking-widest">
+                        Esqueci minha senha
+                    </button>
+                </div>
             </div>
 
             <button type="submit" class="w-full py-4 shadow-xl shadow-emerald-200 bg-emerald-600 text-white font-black rounded-xl hover:bg-emerald-700 active:scale-95 transition-all text-sm uppercase tracking-widest">
@@ -92,6 +93,75 @@ require __DIR__ . '/../includes/header.php';
     </div>
 </div>
 
-<script>lucide.createIcons();</script>
+<div id="modalForgot" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
+    <div class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 shadow-2xl animate-in fade-in zoom-in duration-200 relative">
+        <button onclick="document.getElementById('modalForgot').classList.add('hidden');" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button>
+        
+        <div class="w-16 h-16 bg-blue-50 text-blue-500 rounded-full flex items-center justify-center mx-auto mb-6">
+            <i data-lucide="key-round" class="w-8 h-8"></i>
+        </div>
+        
+        <h3 class="text-2xl font-black text-slate-800 mb-2 text-center tracking-tight">Recuperar Senha</h3>
+        <p class="text-slate-400 text-xs font-medium mb-8 text-center px-4">Digite seu e-mail abaixo. Enviaremos um link seguro para redefinir sua senha.</p>
+        
+        <form id="formForgot" class="space-y-4">
+            <div>
+                <input type="email" id="forgotEmail" required placeholder="Digite seu e-mail" 
+                       class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 transition-all font-bold text-slate-700 text-center">
+            </div>
+            
+            <div id="forgotFeedback" class="hidden p-3 rounded-xl text-center text-xs font-bold"></div>
+
+            <button type="submit" id="btnForgot" class="w-full bg-blue-600 text-white py-4 rounded-2xl font-black hover:bg-blue-700 shadow-xl shadow-blue-100 mt-2 active:scale-95 transition-all uppercase text-xs tracking-widest">
+                Enviar Link
+            </button>
+        </form>
+    </div>
+</div>
+
+<script>
+    lucide.createIcons();
+
+    document.getElementById('formForgot').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('btnForgot');
+        const feedback = document.getElementById('forgotFeedback');
+        const email = document.getElementById('forgotEmail').value;
+
+        btn.disabled = true;
+        btn.innerText = "ENVIANDO...";
+        feedback.classList.add('hidden');
+
+        try {
+            const res = await fetch('../api/auth/forgot_password.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ email: email })
+            });
+            const data = await res.json();
+
+            feedback.classList.remove('hidden');
+            if (data.success) {
+                feedback.className = "p-3 rounded-xl text-center text-xs font-bold bg-emerald-50 text-emerald-600 border border-emerald-100";
+                feedback.innerText = "Se o e-mail existir, o link foi enviado!";
+                btn.innerText = "ENVIADO";
+                setTimeout(() => {
+                    document.getElementById('modalForgot').classList.add('hidden');
+                    btn.disabled = false;
+                    btn.innerText = "ENVIAR LINK";
+                    feedback.classList.add('hidden');
+                    document.getElementById('forgotEmail').value = '';
+                }, 3000);
+            } else {
+                throw new Error(data.message || 'Erro ao enviar.');
+            }
+        } catch (error) {
+            feedback.className = "p-3 rounded-xl text-center text-xs font-bold bg-red-50 text-red-500 border border-red-100";
+            feedback.innerText = "Erro de conexão. Tente novamente.";
+            btn.disabled = false;
+            btn.innerText = "TENTAR NOVAMENTE";
+        }
+    });
+</script>
 </body>
 </html>

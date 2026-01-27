@@ -11,16 +11,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $valToSave = $value;
         
-        // --- ALTERAÇÃO: CRIPTOGRAFIA DESATIVADA PARA CORRIGIR ERRO DE TOKEN ---
-        // O Mercado Pago precisa ler o token exato. A criptografia estava gerando caracteres
-        // inválidos na hora de descriptografar. Salvamos puro agora.
-        /*
-        if (($key === 'mp_access_token' || $key === 'mp_client_secret') && !empty($value)) {
-            $valToSave = encryptData($value);
-        }
-        */
-        // ----------------------------------------------------------------------
-
         // Salva ou atualiza a configuração no banco
         $stmt = $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = ?");
         $stmt->execute([$key, $valToSave, $valToSave]);
@@ -39,18 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Busca as configurações atuais
 $settings = $pdo->query("SELECT setting_key, setting_value FROM system_settings")->fetchAll(PDO::FETCH_KEY_PAIR);
-
-// --- ALTERAÇÃO: DESCRIPTOGRAFIA DESATIVADA ---
-// O sistema agora lê o token puro do banco para evitar erros de "lixo" na string
-/*
-if (!empty($settings['mp_access_token'])) {
-    $settings['mp_access_token'] = decryptData($settings['mp_access_token']);
-}
-if (!empty($settings['mp_client_secret'])) {
-    $settings['mp_client_secret'] = decryptData($settings['mp_client_secret']);
-}
-*/
-// ---------------------------------------------
 
 // Valores padrão
 $timezone = $settings['system_timezone'] ?? 'America/Sao_Paulo';
@@ -257,6 +235,50 @@ require __DIR__ . '/../../includes/header.php';
                                         <p class="text-[10px] text-slate-400 mt-3 flex items-center gap-1 ml-1"><i data-lucide="lock" class="w-3 h-3"></i> O secret será salvo sem criptografia.</p>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="bg-white rounded-[2rem] shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
+                            <i data-lucide="mail" class="w-5 h-5 text-slate-400"></i>
+                            <h2 class="font-bold text-slate-800 uppercase tracking-tight text-sm">Servidor de E-mail (SMTP)</h2>
+                        </div>
+                        <div class="p-6 md:p-8 space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Servidor SMTP (Host)</label>
+                                    <div class="relative">
+                                        <i data-lucide="server" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300"></i>
+                                        <input type="text" name="smtp_host" value="<?= htmlspecialchars($settings['smtp_host'] ?? '') ?>" placeholder="ex: smtp.gmail.com" 
+                                               class="w-full pl-11 pr-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm font-bold text-slate-700">
+                                    </div>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Porta SMTP</label>
+                                    <div class="relative">
+                                        <i data-lucide="hash" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300"></i>
+                                        <input type="text" name="smtp_port" value="<?= htmlspecialchars($settings['smtp_port'] ?? '') ?>" placeholder="ex: 587" 
+                                               class="w-full pl-11 pr-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm font-bold text-slate-700">
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail Remetente</label>
+                                <div class="relative">
+                                    <i data-lucide="at-sign" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300"></i>
+                                    <input type="email" name="smtp_email" value="<?= htmlspecialchars($settings['smtp_email'] ?? '') ?>" placeholder="ex: nao-responda@escola.com" 
+                                           class="w-full pl-11 pr-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm font-bold text-slate-700">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Senha do E-mail (App Password)</label>
+                                <div class="relative">
+                                    <i data-lucide="lock" class="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-300"></i>
+                                    <input type="password" name="smtp_password" value="<?= htmlspecialchars($settings['smtp_password'] ?? '') ?>" placeholder="**********" 
+                                           class="w-full pl-11 pr-5 py-4 rounded-2xl border border-slate-200 focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none transition-all text-sm font-bold text-slate-700">
+                                </div>
+                                <p class="text-[10px] text-slate-400 mt-2 ml-1 italic">Utilize uma senha de aplicativo para maior segurança.</p>
                             </div>
                         </div>
                     </section>

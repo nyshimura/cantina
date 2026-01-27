@@ -15,9 +15,9 @@ define('BASE_URL', $baseUrl);
 
 // CONEXÃO COM O BANCO
 $host = 'localhost';
-$db   = 'banco';
-$user = 'usuario';
-$pass = 'senhadobanco';
+$db   = 'nomedb';
+$user = 'userdb';
+$pass = 'senhadb';
 $charset = 'utf8mb4';
 
 $dsn = "mysql:host=$host;dbname=$db;charset=$charset";

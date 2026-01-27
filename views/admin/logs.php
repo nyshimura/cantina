@@ -12,8 +12,7 @@ try {
     // Define no PHP
     date_default_timezone_set($savedTz);
 
-    // Define no BANCO DE DADOS (Essa linha corrige a diferença de 3h na consulta SQL)
-    // Converte o nome do fuso (ex: America/Sao_Paulo) para offset (ex: -03:00)
+    // Define no BANCO DE DADOS (Corrige a diferença de 3h na consulta SQL)
     $nowTz = new DateTime('now', new DateTimeZone($savedTz));
     $offset = $nowTz->format('P'); 
     $pdo->exec("SET time_zone = '$offset'");
@@ -35,7 +34,6 @@ try {
     $params = [];
 
     if ($dateFilter) {
-        // Agora o banco filtrará usando o fuso horário que definimos acima
         $sql .= " AND DATE(a.timestamp) = ?";
         $params[] = $dateFilter;
     }
@@ -136,10 +134,14 @@ require __DIR__ . '/../../includes/header.php';
                             </thead>
                             <tbody class="divide-y divide-slate-100">
                                 <?php foreach($logs as $log): 
+                                    // Definição de Cores e Estilos baseado na Ação
                                     $badgeColor = 'bg-slate-100 text-slate-500';
+                                    $icon = ''; // Opcional, se quiser adicionar ícones na badge
+
                                     if(strpos($log['action'], 'REFUND') !== false) $badgeColor = 'bg-red-50 text-red-600 border-red-100';
-                                    if(strpos($log['action'], 'PIX') !== false) $badgeColor = 'bg-emerald-50 text-emerald-600 border-emerald-100';
-                                    if(strpos($log['action'], 'LOGIN') !== false) $badgeColor = 'bg-blue-50 text-blue-600 border-blue-100';
+                                    elseif(strpos($log['action'], 'PIX') !== false) $badgeColor = 'bg-emerald-50 text-emerald-600 border-emerald-100';
+                                    elseif(strpos($log['action'], 'LOGIN') !== false) $badgeColor = 'bg-blue-50 text-blue-600 border-blue-100';
+                                    elseif(strpos($log['action'], 'WALLET_TRANSFER') !== false) $badgeColor = 'bg-indigo-50 text-indigo-600 border-indigo-100';
                                 ?>
                                 <tr class="hover:bg-slate-50/50 transition-colors">
                                     <td class="px-6 md:px-8 py-5 font-mono text-xs font-bold text-slate-400 whitespace-nowrap">
@@ -149,18 +151,27 @@ require __DIR__ . '/../../includes/header.php';
                                         <span class="text-sm font-bold text-slate-700"><?= htmlspecialchars($log['operator_name'] ?: 'Sistema') ?></span>
                                     </td>
                                     <td class="px-6 md:px-8 py-5 whitespace-nowrap">
-                                        <span class="px-2 py-1 rounded-md text-[9px] font-black uppercase border <?= $badgeColor ?>">
+                                        <span class="px-2 py-1 rounded-md text-[9px] font-black uppercase border <?= $badgeColor ?> flex items-center gap-1 w-fit">
+                                            <?php if(strpos($log['action'], 'WALLET_TRANSFER') !== false): ?>
+                                                <i data-lucide="arrow-left-right" class="w-3 h-3"></i>
+                                            <?php endif; ?>
                                             <?= str_replace('_', ' ', $log['action']) ?>
                                         </span>
                                     </td>
                                     <td class="px-6 md:px-8 py-5 min-w-[200px]">
-                                        <p class="text-xs text-slate-600 leading-relaxed"><?= htmlspecialchars($log['description']) ?></p>
+                                        <p class="text-xs text-slate-600 leading-relaxed font-medium"><?= htmlspecialchars($log['description']) ?></p>
                                         <?php 
                                         $impactData = json_decode($log['impact'], true);
                                         $impactMsg = is_array($impactData) ? ($impactData['message'] ?? '') : $log['impact'];
+                                        
+                                        // Se for transferência, mostra detalhes extras se disponíveis
+                                        if (empty($impactMsg) && $log['action'] === 'WALLET_TRANSFER' && is_array($impactData)) {
+                                            $impactMsg = "De: " . ($impactData['from_student'] ?? '?') . " -> Para: " . ($impactData['to_student'] ?? '?');
+                                        }
+
                                         if(!empty($impactMsg)): ?>
-                                            <div class="mt-1 text-[9px] font-mono text-slate-400 bg-slate-50 p-1 rounded italic w-fit">
-                                                Impacto: <?= htmlspecialchars($impactMsg) ?>
+                                            <div class="mt-1 text-[9px] font-mono text-slate-400 bg-slate-50 p-1.5 rounded italic w-fit border border-slate-100">
+                                                <span class="font-bold">Detalhes:</span> <?= htmlspecialchars($impactMsg) ?>
                                             </div>
                                         <?php endif; ?>
                                     </td>
