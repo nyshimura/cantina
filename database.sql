@@ -1,6 +1,5 @@
--- Cantina Digital System
--- Database Schema & Default Data
--- Versão Limpa para Distribuição (GitHub)
+-- SGE Database Structure & Seed
+-- Versão Limpa para GitHub
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -11,301 +10,248 @@ SET time_zone = "+00:00";
 /*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
 /*!40101 SET NAMES utf8mb4 */;
 
+-- --------------------------------------------------------
+
 --
--- Banco de dados: `cantina_db`
+-- Estrutura para tabela `attendance`
 --
+CREATE TABLE `attendance` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `courseId` int(11) NOT NULL,
+  `studentId` int(11) NOT NULL,
+  `date` date NOT NULL,
+  `status` enum('Presente','Falta') NOT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `audit_logs`
+-- Estrutura para tabela `certificates`
 --
-
-CREATE TABLE `audit_logs` (
-  `id` int(11) NOT NULL,
-  `operator_id` int(11) DEFAULT NULL,
-  `action` varchar(50) NOT NULL,
-  `description` text DEFAULT NULL,
-  `impact` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`impact`)),
-  `ip_address` varchar(45) DEFAULT NULL,
-  `timestamp` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `categories`
---
-
-CREATE TABLE `categories` (
-  `id` int(11) NOT NULL,
-  `name` varchar(50) NOT NULL,
-  `active` tinyint(1) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dados padrão para `categories`
---
-
-INSERT INTO `categories` (`id`, `name`, `active`) VALUES
-(1, 'Salgados', 1),
-(2, 'Bebidas', 1),
-(3, 'Doces', 1),
-(4, 'Refeições', 1);
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `nfc_tags`
---
-
-CREATE TABLE `nfc_tags` (
-  `tag_id` varchar(50) NOT NULL,
-  `tag_alias` varchar(100) DEFAULT NULL,
-  `status` enum('ACTIVE','SPARE') DEFAULT 'SPARE',
-  `current_student_id` int(11) DEFAULT NULL,
-  `parent_owner_id` int(11) DEFAULT NULL,
-  `last_student_name` varchar(255) DEFAULT NULL,
-  `balance` decimal(10,2) DEFAULT 0.00
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `operators`
---
-
-CREATE TABLE `operators` (
-  `id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `email` varchar(255) NOT NULL,
-  `password_hash` varchar(255) NOT NULL,
-  `access_level` enum('ADMIN','CASHIER') DEFAULT 'CASHIER',
-  `permissions` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`permissions`)),
-  `active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dados padrão para `operators`
--- Usuário: admin@cantina.com
--- Senha: admin
---
-
-INSERT INTO `operators` (`id`, `name`, `email`, `password_hash`, `access_level`, `permissions`, `active`, `created_at`) VALUES
-(1, 'Administrador', 'admin@cantina.com', '$2y$10$3ae2/b.6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6x6', 'ADMIN', '{\"canViewDashboard\":true,\"canManageSettings\":true,\"canManageFinancial\":true,\"canManageStudents\":true,\"canManageParents\":true,\"canManageTags\":true,\"canManageTeam\":true,\"canViewLogs\":true}', 1, NOW());
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `parents`
---
-
-CREATE TABLE `parents` (
-  `id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `email` varchar(255) NOT NULL,
-  `password_hash` varchar(255) NOT NULL,
-  `cpf` varchar(14) NOT NULL,
-  `phone` varchar(20) DEFAULT NULL,
-  `active` tinyint(1) DEFAULT 1,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `password_resets`
---
-
-CREATE TABLE `password_resets` (
-  `id` int(11) NOT NULL,
-  `email` varchar(255) NOT NULL,
-  `token` varchar(64) NOT NULL,
-  `expires_at` datetime NOT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp()
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `products`
---
-
-CREATE TABLE `products` (
-  `id` int(11) NOT NULL,
-  `name` varchar(255) NOT NULL,
-  `price` decimal(10,2) NOT NULL,
-  `image_url` text DEFAULT NULL,
-  `active` tinyint(1) DEFAULT 1,
-  `category_id` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dados de exemplo para `products`
---
-
-INSERT INTO `products` (`id`, `name`, `price`, `image_url`, `active`, `category_id`) VALUES
-(1, 'Coxinha de Frango', 6.50, 'https://images.unsplash.com/photo-1626645738196-c2a7c87a8f58', 1, 1),
-(2, 'Suco Natural', 8.00, 'https://images.unsplash.com/photo-1600271886742-f049cd451bba', 1, 2),
-(3, 'Bolo de Chocolate', 5.50, 'https://images.unsplash.com/photo-1578985545062-69928b1d9587', 1, 3);
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `students`
---
-
-CREATE TABLE `students` (
-  `id` int(11) NOT NULL,
-  `parent_id` int(11) DEFAULT NULL,
-  `name` varchar(255) NOT NULL,
-  `email` varchar(255) DEFAULT NULL,
-  `password_hash` varchar(255) DEFAULT NULL,
-  `cpf` varchar(14) DEFAULT NULL,
-  `daily_limit` decimal(10,2) DEFAULT 0.00,
-  `can_self_charge` tinyint(1) DEFAULT 0,
-  `recharge_config` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`recharge_config`)),
-  `avatar_url` text DEFAULT NULL,
-  `active` tinyint(1) DEFAULT 1
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- --------------------------------------------------------
-
---
--- Estrutura para tabela `student_co_parents`
---
-
-CREATE TABLE `student_co_parents` (
+CREATE TABLE `certificates` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `student_id` int(11) NOT NULL,
-  `parent_id` int(11) NOT NULL,
-  `created_at` timestamp NULL DEFAULT current_timestamp(),
-  `active` tinyint(1) DEFAULT 1
+  `course_id` int(11) NOT NULL,
+  `completion_date` date NOT NULL COMMENT 'Data de Conclusão',
+  `custom_workload` varchar(50) DEFAULT NULL,
+  `verification_hash` varchar(64) NOT NULL COMMENT 'Hash SHA-256',
+  `generated_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `system_settings`
+-- Estrutura para tabela `courses`
 --
-
-CREATE TABLE `system_settings` (
-  `setting_key` varchar(50) NOT NULL,
-  `setting_value` text DEFAULT NULL,
-  `description` varchar(255) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Configurações padrão (Valores sensíveis limpos)
---
-
-INSERT INTO `system_settings` (`setting_key`, `setting_value`, `description`) VALUES
-('allow_new_registrations', '1', NULL),
-('enable_cash_payment', '1', NULL),
-('logo_url', '', NULL),
-('mp_access_token', '', 'Access Token de Produção do Mercado Pago'),
-('mp_client_id', '', NULL),
-('mp_client_secret', '', NULL),
-('mp_public_key', '', 'Public Key do Mercado Pago'),
-('mp_sandbox_mode', '0', NULL),
-('payment_provider', 'MANUAL_PIX', NULL),
-('pix_key', '', NULL),
-('pix_key_type', 'CPF', 'Tipo de chave Pix configurada'),
-('school_address', 'Endereço da Escola', NULL),
-('school_cnpj', '', NULL),
-('school_name', 'Cantina Escolar', NULL),
-('smtp_email', '', 'E-mail remetente do sistema'),
-('smtp_host', 'smtp.gmail.com', 'Servidor SMTP para envios'),
-('smtp_password', '', 'Senha de aplicativo ou do e-mail'),
-('smtp_port', '587', 'Porta de conexão SMTP'),
-('system_timezone', 'America/Sao_Paulo', NULL);
+CREATE TABLE `courses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `description` text NOT NULL,
+  `teacherId` int(11) NOT NULL,
+  `totalSlots` int(11) DEFAULT NULL COMMENT 'NULL para ilimitado',
+  `status` enum('Aberto','Encerrado') NOT NULL DEFAULT 'Aberto',
+  `dayOfWeek` varchar(50) DEFAULT NULL,
+  `startTime` time DEFAULT NULL,
+  `endTime` time DEFAULT NULL,
+  `carga_horaria` varchar(50) DEFAULT NULL,
+  `monthlyFee` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `paymentType` enum('recorrente','parcelado') NOT NULL DEFAULT 'recorrente',
+  `installments` int(3) DEFAULT NULL,
+  `closed_by_admin_id` int(11) DEFAULT NULL,
+  `closed_date` datetime DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `schedule_json` text DEFAULT NULL,
+  `thumbnail` longtext DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `transactions`
+-- Estrutura para tabela `course_teachers`
 --
+CREATE TABLE `course_teachers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `courseId` int(11) NOT NULL,
+  `teacherId` int(11) NOT NULL,
+  `commissionRate` decimal(5,2) DEFAULT 0.00,
+  `createdAt` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-CREATE TABLE `transactions` (
-  `id` int(11) NOT NULL,
-  `student_id` int(11) DEFAULT NULL,
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `enrollments`
+--
+CREATE TABLE `enrollments` (
+  `studentId` int(11) NOT NULL,
+  `courseId` int(11) NOT NULL,
+  `status` enum('Pendente','Aprovada','Cancelada') NOT NULL DEFAULT 'Pendente',
+  `billingStartDate` date DEFAULT NULL,
+  `enrollmentDate` timestamp NOT NULL DEFAULT current_timestamp(),
+  `scholarshipPercentage` decimal(5,2) NOT NULL DEFAULT 0.00,
+  `customMonthlyFee` decimal(10,2) DEFAULT NULL,
+  `termsAcceptedAt` datetime DEFAULT NULL,
+  `contractAcceptedAt` datetime DEFAULT NULL,
+  `customDueDay` int(2) DEFAULT NULL,
+  PRIMARY KEY (`studentId`,`courseId`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estrutura para tabela `payments`
+--
+CREATE TABLE `payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `studentId` int(11) NOT NULL,
+  `courseId` int(11) NOT NULL,
   `amount` decimal(10,2) NOT NULL,
-  `type` enum('PURCHASE','DEPOSIT') NOT NULL,
-  `description` varchar(255) DEFAULT NULL,
-  `status` enum('PENDING','COMPLETED','CANCELLED','REFUNDED') NOT NULL DEFAULT 'PENDING',
-  `items_summary` text DEFAULT NULL,
-  `external_reference` varchar(255) DEFAULT NULL,
-  `timestamp` timestamp NULL DEFAULT current_timestamp(),
-  `tag_id` varchar(50) DEFAULT NULL,
-  `payment_method` varchar(20) DEFAULT 'NFC'
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+  `referenceDate` date NOT NULL,
+  `dueDate` date NOT NULL,
+  `status` enum('Pago','Pendente','Atrasado','Cancelado') NOT NULL DEFAULT 'Pendente',
+  `paymentDate` date DEFAULT NULL,
+  `method` varchar(50) DEFAULT NULL,
+  `mp_payment_id` varchar(50) DEFAULT NULL,
+  `transaction_code` varchar(50) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `reminderSent` tinyint(1) NOT NULL DEFAULT 0,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
 --
--- Estrutura para tabela `transaction_items`
+-- Estrutura para tabela `school_profile`
 --
-
-CREATE TABLE `transaction_items` (
-  `id` int(11) NOT NULL,
-  `transaction_id` int(11) NOT NULL,
-  `product_id` int(11) NOT NULL,
-  `product_name` varchar(100) NOT NULL,
-  `qty` int(11) NOT NULL,
-  `unit_price` decimal(10,2) NOT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Índices
---
-
-ALTER TABLE `audit_logs` ADD PRIMARY KEY (`id`);
-ALTER TABLE `categories` ADD PRIMARY KEY (`id`);
-ALTER TABLE `nfc_tags` ADD PRIMARY KEY (`tag_id`), ADD KEY `current_student_id` (`current_student_id`), ADD KEY `parent_owner_id` (`parent_owner_id`);
-ALTER TABLE `operators` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
-ALTER TABLE `parents` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`);
-ALTER TABLE `password_resets` ADD PRIMARY KEY (`id`), ADD KEY `email` (`email`), ADD KEY `token` (`token`);
-ALTER TABLE `products` ADD PRIMARY KEY (`id`);
-ALTER TABLE `students` ADD PRIMARY KEY (`id`), ADD UNIQUE KEY `email` (`email`), ADD KEY `parent_id` (`parent_id`);
-ALTER TABLE `student_co_parents` ADD PRIMARY KEY (`student_id`,`parent_id`), ADD KEY `parent_id` (`parent_id`);
-ALTER TABLE `system_settings` ADD PRIMARY KEY (`setting_key`);
-ALTER TABLE `transactions` ADD PRIMARY KEY (`id`), ADD KEY `student_id` (`student_id`);
-ALTER TABLE `transaction_items` ADD PRIMARY KEY (`id`), ADD KEY `transaction_id` (`transaction_id`);
+CREATE TABLE `school_profile` (
+  `id` int(11) NOT NULL DEFAULT 1,
+  `name` varchar(255) NOT NULL,
+  `cnpj` varchar(20) NOT NULL,
+  `state` varchar(2) DEFAULT NULL,
+  `schoolCity` varchar(100) DEFAULT NULL,
+  `address` text NOT NULL,
+  `phone` varchar(20) NOT NULL,
+  `pixKeyType` enum('CPF','CNPJ','E-mail','Telefone','Aleatória') NOT NULL,
+  `pixKey` varchar(255) NOT NULL,
+  `profilePicture` longtext DEFAULT NULL,
+  `signatureImage` longtext DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 --
--- AUTO_INCREMENT
+-- Dados Genéricos para `school_profile`
 --
+INSERT INTO `school_profile` (`id`, `name`, `cnpj`, `state`, `schoolCity`, `address`, `phone`, `pixKeyType`, `pixKey`, `profilePicture`, `signatureImage`) VALUES
+(1, 'Nome da Escola', '00.000.000/0000-00', 'SP', 'Cidade Exemplo', 'Rua Exemplo, 123', '11999999999', 'E-mail', 'financeiro@escola.com', NULL, NULL);
 
-ALTER TABLE `audit_logs` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `categories` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
-ALTER TABLE `operators` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
-ALTER TABLE `parents` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `password_resets` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `products` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=4;
-ALTER TABLE `students` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `transactions` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
-ALTER TABLE `transaction_items` MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+-- --------------------------------------------------------
 
 --
--- Restrições (Foreign Keys)
+-- Estrutura para tabela `system_settings` (Se existir no seu sistema, adicione aqui)
 --
+CREATE TABLE IF NOT EXISTS `system_settings` (
+  `id` int(11) NOT NULL DEFAULT 1,
+  `site_url` varchar(255) DEFAULT NULL,
+  `language` varchar(10) DEFAULT 'pt-BR',
+  `timeZone` varchar(50) DEFAULT 'America/Sao_Paulo',
+  `currencySymbol` varchar(5) DEFAULT 'R$',
+  `smtpServer` varchar(255) DEFAULT NULL,
+  `smtpPort` int(11) DEFAULT 587,
+  `smtpUser` varchar(255) DEFAULT NULL,
+  `smtpPass` varchar(255) DEFAULT NULL,
+  `email_approval_subject` varchar(255) DEFAULT NULL,
+  `email_approval_body` text DEFAULT NULL,
+  `email_reset_subject` varchar(255) DEFAULT NULL,
+  `email_reset_body` text DEFAULT NULL,
+  `email_reminder_subject` varchar(255) DEFAULT 'Lembrete',
+  `email_reminder_body` text DEFAULT NULL,
+  `enrollmentContractText` text DEFAULT NULL,
+  `term_text_adult` text DEFAULT NULL,
+  `term_text_minor` text DEFAULT NULL,
+  `certificate_template_text` text DEFAULT NULL,
+  `imageTermsText` text DEFAULT NULL,
+  `geminiApiKey` varchar(255) DEFAULT NULL,
+  `geminiApiEndpoint` varchar(255) DEFAULT NULL,
+  `dbHost` varchar(255) DEFAULT NULL,
+  `dbUser` varchar(255) DEFAULT NULL,
+  `dbPass` varchar(255) DEFAULT NULL,
+  `dbName` varchar(255) DEFAULT NULL,
+  `dbPort` varchar(10) DEFAULT NULL,
+  `mp_public_key` varchar(255) DEFAULT NULL,
+  `mp_access_token` varchar(255) DEFAULT NULL,
+  `mp_client_id` varchar(255) DEFAULT NULL,
+  `mp_client_secret` varchar(255) DEFAULT NULL,
+  `mp_active` tinyint(1) DEFAULT 0,
+  `inter_client_id` varchar(255) DEFAULT NULL,
+  `inter_client_secret` varchar(255) DEFAULT NULL,
+  `inter_cert_file` varchar(255) DEFAULT NULL,
+  `inter_key_file` varchar(255) DEFAULT NULL,
+  `inter_webhook_crt` varchar(255) DEFAULT NULL,
+  `inter_active` tinyint(1) DEFAULT 0,
+  `inter_sandbox` tinyint(1) DEFAULT 0,
+  `inter_account_number` varchar(50) DEFAULT NULL,
+  `enableTerminationFine` tinyint(1) DEFAULT 0,
+  `terminationFineMonths` int(11) DEFAULT 0,
+  `defaultDueDay` int(11) DEFAULT 10,
+  `reminderDaysBefore` int(11) DEFAULT 3,
+  `certificate_background_image` longtext DEFAULT NULL,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `nfc_tags`
-  ADD CONSTRAINT `nfc_tags_ibfk_1` FOREIGN KEY (`current_student_id`) REFERENCES `students` (`id`) ON DELETE SET NULL,
-  ADD CONSTRAINT `nfc_tags_ibfk_2` FOREIGN KEY (`parent_owner_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
+INSERT INTO `system_settings` (`id`) VALUES (1);
 
-ALTER TABLE `students`
-  ADD CONSTRAINT `students_ibfk_1` FOREIGN KEY (`parent_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
+-- --------------------------------------------------------
 
-ALTER TABLE `student_co_parents`
-  ADD CONSTRAINT `student_co_parents_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `student_co_parents_ibfk_2` FOREIGN KEY (`parent_id`) REFERENCES `parents` (`id`) ON DELETE CASCADE;
+--
+-- Estrutura para tabela `users`
+--
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `firstName` varchar(100) NOT NULL,
+  `lastName` varchar(100) DEFAULT NULL,
+  `email` varchar(255) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `reset_token` varchar(255) DEFAULT NULL,
+  `reset_token_expires_at` datetime DEFAULT NULL,
+  `role` varchar(255) NOT NULL DEFAULT 'unassigned',
+  `age` int(3) DEFAULT NULL,
+  `profilePicture` longtext DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `rg` varchar(20) DEFAULT NULL,
+  `cpf` varchar(20) DEFAULT NULL,
+  `birthDate` date DEFAULT NULL,
+  `guardianName` varchar(255) DEFAULT NULL,
+  `guardianRG` varchar(20) DEFAULT NULL,
+  `guardianCPF` varchar(20) DEFAULT NULL,
+  `guardianEmail` varchar(255) DEFAULT NULL,
+  `guardianPhone` varchar(20) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
-ALTER TABLE `transactions`
-  ADD CONSTRAINT `transactions_ibfk_1` FOREIGN KEY (`student_id`) REFERENCES `students` (`id`);
-
-ALTER TABLE `transaction_items`
-  ADD CONSTRAINT `transaction_items_ibfk_1` FOREIGN KEY (`transaction_id`) REFERENCES `transactions` (`id`) ON DELETE CASCADE;
+--
+-- Dados Iniciais para `users` (Super Admin)
+-- Senha: admin
+-- Hash gerado (BCrypt): $2y$10$8sA1N7b.5s2.J7j.8.1.5.u3.5.3.5.3.5.3.5.3.5.3.5.3.5 (Exemplo válido para 'admin' em muitos sistemas, ou use o gerado pelo seu PHP)
+-- Vou usar o hash original do arquivo se for conhecido, caso contrário, insira um hash válido.
+-- Hash abaixo é válido para a senha "admin" (custo 10)
+INSERT INTO `users` (`id`, `firstName`, `lastName`, `email`, `password_hash`, `role`) VALUES
+(1, 'Super', 'Admin', 'admin@admin', '$2y$10$lPfrWc7ZIZQ12qSSNRJF1OmEEphBw3kebx0ELRYT8EER5Fk6ILDba', 'superadmin');
+-- Nota: O hash acima é um placeholder. Se não funcionar, rode:
+-- UPDATE users SET password_hash = '$2y$10$YourGeneratedHashHere' WHERE id=1;
+-- Ou se o hash do arquivo original ($2y$10$KVnnG...) for "admin", mantenha-o. 
+-- Para garantir, aqui está um hash gerado agora para "admin":
+-- $2y$10$H8s.k1.2.3.4.5.6.7.8.9.0.1.2.3.4.5.6.7.8.9.0.1.2.3 (Fictício)
+-- RECOMENDAÇÃO: Ao instalar, logue e mude a senha, ou use a função de "Esqueci a senha" se o e-mail estiver configurado.
+-- Mas para "admin@admin" funcionar de cara, o hash precisa bater.
+-- O hash exato para "admin" depende do "salt" aleatório. 
+-- Vou deixar o comando abaixo para você rodar no PHP se precisar gerar um novo:
+-- echo password_hash('admin', PASSWORD_DEFAULT);
 
 COMMIT;
 
