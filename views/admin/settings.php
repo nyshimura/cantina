@@ -28,8 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$key, $value, $value]);
     }
     
-    // 3. Checkboxes (Cash / Sandbox)
-    $checkboxes = ['enable_cash_payment', 'mp_sandbox_mode'];
+    // 3. Checkboxes (Cash / Sandbox / Security PIN)
+    // ATUALIZADO: Adicionado 'security_enable_pin' na lista para salvar 0 se desmarcado
+    $checkboxes = ['enable_cash_payment', 'mp_sandbox_mode', 'security_enable_pin'];
     foreach ($checkboxes as $chk) {
         if (!isset($_POST[$chk])) {
             $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, '0') ON DUPLICATE KEY UPDATE setting_value = '0'")->execute([$chk]);
@@ -52,6 +53,10 @@ date_default_timezone_set($timezone);
 $enableCash = $settings['enable_cash_payment'] ?? '1';
 $mpSandbox = $settings['mp_sandbox_mode'] ?? '0';
 $activeProvider = $settings['payment_provider'] ?? 'MANUAL_PIX';
+
+// NOVO: Defaults de Segurança
+$enablePin = $settings['security_enable_pin'] ?? '0';
+$minPinAmount = $settings['security_pin_min_amount'] ?? '0.00';
 
 // Permissões
 $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
@@ -154,6 +159,41 @@ require __DIR__ . '/../../includes/header.php';
                                 <input type="checkbox" name="enable_cash_payment" value="1" <?= $enableCash == '1' ? 'checked' : '' ?> class="sr-only peer">
                                 <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
                             </label>
+                        </div>
+                    </section>
+
+                    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden ring-1 ring-red-50">
+                        <div class="px-6 py-4 bg-red-50/50 border-b border-red-100 flex items-center gap-2">
+                            <i data-lucide="lock" class="w-4 h-4 text-red-500"></i>
+                            <h2 class="text-sm font-bold text-red-700 uppercase tracking-wide">Segurança do PDV</h2>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex items-center justify-between mb-6">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-red-100 text-red-600 flex items-center justify-center">
+                                        <i data-lucide="key-round" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-800">Exigir Senha (PIN)</h3>
+                                        <p class="text-xs text-slate-500">O aluno deverá digitar a senha para confirmar a compra.</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="security_enable_pin" value="1" <?= $enablePin == '1' ? 'checked' : '' ?> class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-red-500"></div>
+                                </label>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                                <div>
+                                    <label class="text-[10px] font-bold text-slate-400 uppercase block mb-1">Valor Mínimo para Senha</label>
+                                    <div class="relative">
+                                        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">R$</span>
+                                        <input type="number" step="0.01" name="security_pin_min_amount" value="<?= number_format((float)$minPinAmount, 2, '.', '') ?>" class="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 font-bold text-slate-700 text-sm focus:border-red-400 focus:ring-2 focus:ring-red-100 outline-none">
+                                    </div>
+                                    <p class="text-[10px] text-slate-500 mt-1">Abaixo deste valor, a senha não será solicitada (Agilidade).</p>
+                                </div>
+                            </div>
                         </div>
                     </section>
 
@@ -341,6 +381,26 @@ require __DIR__ . '/../../includes/header.php';
                                 <label class="text-[11px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Senha</label>
                                 <input type="password" name="smtp_password" value="<?= htmlspecialchars($settings['smtp_password'] ?? '') ?>" class="w-full px-4 py-3 rounded-lg border border-slate-200 font-bold text-slate-700 text-sm">
                             </div>
+                        </div>
+                    </section>
+                    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+                        <div class="px-6 py-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                            <i data-lucide="wrench" class="w-4 h-4 text-slate-400"></i>
+                            <h2 class="text-sm font-bold text-slate-700 uppercase tracking-wide">Manutenção do Sistema</h2>
+                        </div>
+                        <div class="p-6">
+                            <a href="update_system.php" class="flex items-center justify-between p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50 transition-all group">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                                        <i data-lucide="refresh-cw" class="w-6 h-6"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-800">Verificar Atualizações</h3>
+                                        <p class="text-xs text-slate-500">Busca e instala novas versões diretamente do repositório oficial.</p>
+                                    </div>
+                                </div>
+                                <i data-lucide="chevron-right" class="text-slate-400 group-hover:text-blue-500"></i>
+                            </a>
                         </div>
                     </section>
 

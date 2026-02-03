@@ -1,4 +1,5 @@
 <?php
+// api/update_student_profile.php
 require_once __DIR__ . '/../includes/auth.php';
 requireRole('STUDENT');
 
@@ -12,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 $studentId = $_SESSION['user_id'];
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
+$pin = $_POST['pin'] ?? ''; // <--- NOVO: Captura o PIN
 
 if (empty($email)) {
     echo json_encode(['success' => false, 'message' => 'O e-mail é obrigatório.']);
@@ -36,9 +38,27 @@ try {
     $sql = "UPDATE students SET email = ?, avatar_url = ?";
     $params = [$email, $avatarUrl];
 
+    // --- LÓGICA DE SENHA (LOGIN) ---
     if (!empty($password)) {
         $sql .= ", password_hash = ?";
         $params[] = password_hash($password, PASSWORD_DEFAULT);
+    }
+
+    // --- LÓGICA DE PIN (COMPRA) - NOVO ---
+    if (!empty($pin)) {
+        // Validação: Deve conter apenas números
+        if (!ctype_digit($pin)) {
+            echo json_encode(['success' => false, 'message' => 'O PIN deve conter apenas números.']);
+            exit;
+        }
+        // Validação: Tamanho (4 a 6 dígitos)
+        if (strlen($pin) < 4 || strlen($pin) > 6) {
+            echo json_encode(['success' => false, 'message' => 'O PIN deve ter entre 4 e 6 dígitos.']);
+            exit;
+        }
+        
+        $sql .= ", purchase_pin = ?";
+        $params[] = password_hash($pin, PASSWORD_DEFAULT); // Salva como Hash seguro
     }
 
     $sql .= " WHERE id = ?";
@@ -53,3 +73,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao atualizar: ' . $e->getMessage()]);
 }
+?>

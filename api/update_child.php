@@ -12,9 +12,8 @@ $studentId = $_POST['student_id'] ?? null;
 $name = trim($_POST['name'] ?? '');
 $cpf = trim($_POST['cpf'] ?? '');
 $email = trim($_POST['email'] ?? '');
-// AQUI: Removemos a captura do POST e geramos automaticamente abaixo
-// $avatarUrl = trim($_POST['avatar_url'] ?? ''); 
 $password = $_POST['password'] ?? '';
+$pin = $_POST['pin'] ?? ''; // <--- NOVO: Captura o PIN enviado pelo modal
 
 if (!$studentId || empty($name) || empty($cpf) || empty($email)) {
     echo json_encode(['success' => false, 'message' => 'Preencha os campos obrigatórios.']);
@@ -22,6 +21,7 @@ if (!$studentId || empty($name) || empty($cpf) || empty($email)) {
 }
 
 try {
+    // Verifica se o aluno pertence a este pai
     $check = $pdo->prepare("SELECT id FROM students WHERE id = ? AND parent_id = ?");
     $check->execute([$studentId, $parentId]);
     if (!$check->fetch()) {
@@ -32,16 +32,41 @@ try {
     // GERA O AVATAR AUTOMATICAMENTE BASEADO NO NOVO NOME
     $avatarUrl = "https://api.dicebear.com/9.x/adventurer/svg?seed=" . urlencode($name);
 
-    $sql = "UPDATE students SET name = ?, cpf = ?, email = ?, avatar_url = ? " . (!empty($password) ? ", password_hash = ?" : "") . " WHERE id = ?";
+    // Inicia a construção da query
+    $sql = "UPDATE students SET name = ?, cpf = ?, email = ?, avatar_url = ?";
     $params = [$name, $cpf, $email, $avatarUrl];
-    if (!empty($password)) $params[] = password_hash($password, PASSWORD_DEFAULT);
+
+    // Lógica da Senha de Login (Site)
+    if (!empty($password)) {
+        $sql .= ", password_hash = ?";
+        $params[] = password_hash($password, PASSWORD_DEFAULT);
+    }
+
+    // Lógica da Senha de Compra (PIN) - NOVO
+    if (!empty($pin)) {
+        // Validação básica de segurança
+        if (!ctype_digit($pin)) {
+            echo json_encode(['success' => false, 'message' => 'A Senha de Compra deve conter apenas números.']);
+            exit;
+        }
+        if (strlen($pin) < 4 || strlen($pin) > 6) {
+            echo json_encode(['success' => false, 'message' => 'A Senha de Compra deve ter entre 4 e 6 dígitos.']);
+            exit;
+        }
+
+        $sql .= ", purchase_pin = ?";
+        $params[] = password_hash($pin, PASSWORD_DEFAULT);
+    }
+
+    // Finaliza a query
+    $sql .= " WHERE id = ?";
     $params[] = $studentId;
 
     $stmt = $pdo->prepare($sql);
     $stmt->execute($params);
 
-    echo json_encode(['success' => true, 'message' => 'Perfil salvo!']);
+    echo json_encode(['success' => true, 'message' => 'Perfil salvo com sucesso!']);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Erro ao salvar perfil.']);
+    echo json_encode(['success' => false, 'message' => 'Erro ao salvar perfil: ' . $e->getMessage()]);
 }

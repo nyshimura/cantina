@@ -10,8 +10,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $input['action'] ?? '';
     try {
         if ($action === 'edit') {
-            $stmt = $pdo->prepare("UPDATE students SET name = ?, email = ?, cpf = ? WHERE id = ?");
-            $stmt->execute([$input['name'], $input['email'], $input['cpf'], $input['id']]);
+            // Lógica inteligente: Só atualiza a senha se o admin digitou algo
+            $sql = "UPDATE students SET name = ?, email = ?, cpf = ?";
+            $params = [$input['name'], $input['email'], $input['cpf']];
+
+            if (!empty($input['pin'])) {
+                $sql .= ", purchase_pin = ?";
+                $params[] = password_hash($input['pin'], PASSWORD_DEFAULT);
+            }
+
+            $sql .= " WHERE id = ?";
+            $params[] = $input['id'];
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+
         } elseif ($action === 'nfc') {
             $studentId = $input['id'];
             $tagId = strtoupper(trim($input['tag_id']));
@@ -41,8 +54,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $statusFilter = $_GET['status'] ?? 'ativos';
 $search = $_GET['search'] ?? '';
 
-// SQL ATUALIZADO: Busca o balance diretamente da tabela nfc_tags
-$sql = "SELECT s.*, p.name as parent_name, n.tag_id, n.balance as tag_balance 
+// SQL ATUALIZADO: Busca has_pin para mostrar o cadeado na tela
+$sql = "SELECT s.*, p.name as parent_name, n.tag_id, n.balance as tag_balance,
+        (s.purchase_pin IS NOT NULL AND s.purchase_pin != '') as has_pin 
         FROM students s 
         LEFT JOIN parents p ON s.parent_id = p.id 
         LEFT JOIN nfc_tags n ON n.current_student_id = s.id 
@@ -152,7 +166,12 @@ require __DIR__ . '/../../includes/header.php';
                                         <div class="flex items-center gap-4">
                                             <img src="<?= $s['avatar_url'] ?>" class="w-10 h-10 rounded-full bg-slate-100 border-2 border-white shadow-sm shrink-0">
                                             <div>
-                                                <p class="font-bold text-slate-800 text-sm whitespace-nowrap"><?= htmlspecialchars($s['name']) ?></p>
+                                                <p class="font-bold text-slate-800 text-sm whitespace-nowrap flex items-center gap-2">
+                                                    <?= htmlspecialchars($s['name']) ?>
+                                                    <?php if($s['has_pin']): ?>
+                                                        <i data-lucide="lock" class="w-3 h-3 text-emerald-500" title="Senha de Compra Ativa"></i>
+                                                    <?php endif; ?>
+                                                </p>
                                                 <p class="text-xs text-slate-400"><?= htmlspecialchars($s['email']) ?></p>
                                             </div>
                                         </div>
@@ -241,7 +260,7 @@ require __DIR__ . '/../../includes/header.php';
             <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="user" class="text-emerald-600"></i> Detalhes do Aluno</h3>
             <button onclick="closeModals()" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
         </div>
-        <form onsubmit="event.preventDefault(); handleAction('edit', {id: currentStudentId, name: document.getElementById('editName').value, email: document.getElementById('editEmail').value, cpf: document.getElementById('editCpf').value}, this.querySelector('button[type=submit]'))" class="p-8 space-y-6">
+        <form onsubmit="event.preventDefault(); handleAction('edit', {id: currentStudentId, name: document.getElementById('editName').value, email: document.getElementById('editEmail').value, cpf: document.getElementById('editCpf').value, pin: document.getElementById('editPin').value}, this.querySelector('button[type=submit]'))" class="p-8 space-y-6">
             <div class="bg-slate-50 p-5 rounded-2xl flex items-center gap-5">
                 <img id="editAvatar" src="" class="w-16 h-16 rounded-full border-4 border-white shadow-md">
                 <div>
@@ -258,9 +277,15 @@ require __DIR__ . '/../../includes/header.php';
                     <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">E-mail Institucional</label>
                     <input type="email" id="editEmail" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold">
                 </div>
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Número do CPF</label>
-                    <input type="text" id="editCpf" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Número do CPF</label>
+                        <input type="text" id="editCpf" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 transition-all font-bold">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-red-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1"><i data-lucide="lock" class="w-3 h-3"></i> Senha de Compra (PIN)</label>
+                        <input type="password" id="editPin" maxlength="6" inputmode="numeric" placeholder="Manter Atual" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-red-500/10 focus:border-red-500 transition-all font-bold text-center tracking-widest placeholder:tracking-normal placeholder:font-medium placeholder:text-slate-300">
+                    </div>
                 </div>
             </div>
             <div class="flex justify-between items-center pt-4">
@@ -387,6 +412,8 @@ require __DIR__ . '/../../includes/header.php';
         document.getElementById('editName').value = s.name;
         document.getElementById('editEmail').value = s.email;
         document.getElementById('editCpf').value = s.cpf || '';
+        // Limpa o campo de senha para não mostrar hash
+        document.getElementById('editPin').value = '';
         document.getElementById('modalEdit').classList.replace('hidden', 'flex');
     }
 

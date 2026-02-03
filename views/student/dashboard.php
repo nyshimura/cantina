@@ -37,7 +37,6 @@ try {
         }
 
         // CORREÇÃO: Soma apenas COMPLETED e PENDING RECENTES (últimos 30 min)
-        // Isso evita que tentativas de Pix abandonadas bloqueiem o limite do aluno para sempre.
         $stmtLimit = $pdo->prepare("
             SELECT SUM(amount) 
             FROM transactions 
@@ -53,7 +52,6 @@ try {
         $currentUsage = floatval($stmtLimit->fetchColumn() ?: 0);
     }
     
-    // Garante que não mostre valor negativo
     $remainingLimit = max(0, $limitVal - $currentUsage);
     // ---------------------------------------------------
 
@@ -251,9 +249,20 @@ require __DIR__ . '/../../includes/header.php';
                     <input type="email" name="email" value="<?= $student['email'] ?>" required class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-emerald-500">
                 </div>
                 <div>
-                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Nova Senha</label>
+                    <label class="text-[10px] font-black text-slate-400 uppercase ml-2 mb-1 block">Nova Senha (Login)</label>
                     <input type="password" name="password" placeholder="••••••••" class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold text-slate-700 outline-none focus:border-emerald-500">
                 </div>
+                
+                <div class="bg-red-50/50 p-4 rounded-2xl border border-red-100/50">
+                    <label class="text-[10px] font-black text-red-400 uppercase ml-2 mb-1 block flex items-center gap-1">
+                        <i data-lucide="lock" class="w-3 h-3"></i> Senha de Compra (PIN)
+                    </label>
+                    <div class="relative">
+                        <input type="password" name="pin" maxlength="6" inputmode="numeric" placeholder="4 a 6 números" class="w-full p-3 bg-white border border-red-100 rounded-xl font-bold text-slate-700 outline-none focus:border-red-400 focus:ring-4 focus:ring-red-500/10 text-center tracking-[0.5em] placeholder:tracking-normal placeholder:text-slate-300 placeholder:font-medium">
+                    </div>
+                    <p class="text-[9px] text-red-300 font-bold mt-2 ml-2 text-center uppercase tracking-wide">Deixe vazio para não alterar</p>
+                </div>
+
             </div>
             <button type="submit" class="submit-btn w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg hover:bg-emerald-600 transition-all mt-6 uppercase text-xs tracking-widest">Salvar Alterações</button>
         </form>

@@ -245,12 +245,85 @@ require __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
+<div id="modalPin" class="fixed inset-0 bg-slate-900/90 hidden items-center justify-center p-4 z-[90] backdrop-blur-md transition-all duration-300">
+    <div class="bg-white rounded-[2.5rem] w-full max-w-sm p-8 text-center relative overflow-hidden animate-in zoom-in duration-200 shadow-2xl">
+        <div class="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-red-400 to-rose-500"></div>
+        <button onclick="closePinModal()" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button>
+
+        <div class="w-16 h-16 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm">
+            <i data-lucide="lock" class="w-8 h-8"></i>
+        </div>
+        <h3 class="text-xl font-black text-slate-800 tracking-tight mb-1">Senha de Compra</h3>
+        <p class="text-slate-400 text-xs font-medium mb-8">Esta compra exige autenticação.</p>
+        
+        <div class="mb-6">
+            <input type="password" id="pinInput" readonly
+                   class="w-full py-4 text-center text-4xl font-black text-slate-800 bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-red-400 transition-all tracking-[0.5em] h-20 placeholder:text-slate-200" placeholder="••••">
+        </div>
+
+        <div class="grid grid-cols-3 gap-3 mb-6">
+            <?php for($i=1; $i<=9; $i++): ?>
+                <button onclick="appendPin('<?=$i?>')" class="h-14 rounded-xl bg-slate-50 border border-slate-100 text-xl font-bold text-slate-600 hover:bg-slate-100 active:scale-95 transition-all shadow-sm"><?=$i?></button>
+            <?php endfor; ?>
+            <button onclick="clearPin()" class="h-14 rounded-xl bg-red-50 border border-red-100 text-red-500 hover:bg-red-100 active:scale-95 transition-all flex items-center justify-center"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+            <button onclick="appendPin('0')" class="h-14 rounded-xl bg-slate-50 border border-slate-100 text-xl font-bold text-slate-600 hover:bg-slate-100 active:scale-95 transition-all shadow-sm">0</button>
+            <button onclick="confirmPin()" class="h-14 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 active:scale-95 transition-all flex items-center justify-center shadow-lg shadow-emerald-200"><i data-lucide="check" class="w-6 h-6"></i></button>
+        </div>
+    </div>
+</div>
+
 <script>
     lucide.createIcons();
     let cart = [];
     let isMobileCartOpen = false;
+    let pendingPaymentData = null; // Armazena dados enquanto pede a senha
 
-    // --- NOVA FUNÇÃO DE TOAST (Substitui Alert) ---
+    // --- LISTENER GLOBAL DE TECLADO (FÍSICO + F9) ---
+    document.addEventListener('keydown', function(e) {
+        // 1. Se o Modal de PIN estiver aberto
+        const modalPin = document.getElementById('modalPin');
+        if (modalPin && !modalPin.classList.contains('hidden')) {
+            // Números
+            if (e.key >= '0' && e.key <= '9') {
+                appendPin(e.key);
+                e.preventDefault();
+            }
+            // Enter
+            if (e.key === 'Enter') {
+                confirmPin();
+                e.preventDefault();
+            }
+            // Backspace (apaga um dígito)
+            if (e.key === 'Backspace') {
+                const input = document.getElementById('pinInput');
+                if (input.value.length > 0) {
+                    input.value = input.value.slice(0, -1);
+                }
+                e.preventDefault();
+            }
+            // Esc (fecha modal)
+            if (e.key === 'Escape') {
+                closePinModal();
+                e.preventDefault();
+            }
+            return; // Impede que F9 ou outras teclas globais disparem
+        }
+
+        // 2. Atalho F9 para focar na leitura de Tag (Padrão de leitores USB)
+        if (e.key === 'F9') {
+            e.preventDefault(); 
+            const input = document.getElementById('nfcInput');
+            if(window.innerWidth < 768 && !isMobileCartOpen) {
+                toggleMobileCart();
+            }
+            input.value = ''; 
+            input.focus();    
+            input.classList.add('bg-yellow-100');
+            setTimeout(() => input.classList.remove('bg-yellow-100'), 200);
+        }
+    });
+
+    // --- TOAST FUNCTION ---
     function showToast(message, type = 'info') {
         const container = document.getElementById('toastContainer');
         const toast = document.createElement('div');
@@ -275,11 +348,9 @@ require __DIR__ . '/../../includes/header.php';
         }, 3000);
     }
 
-    // --- SWIPE LOGIC (ARRASTAR PARA BAIXO) ---
+    // --- SWIPE LOGIC ---
     const handle = document.getElementById('swipeHandle');
     const content = document.getElementById('cartContent');
-    const panel = document.getElementById('cartPanel');
-    
     let startY = 0;
     let currentY = 0;
     let isDragging = false;
@@ -287,16 +358,15 @@ require __DIR__ . '/../../includes/header.php';
     handle.addEventListener('touchstart', (e) => {
         startY = e.touches[0].clientY;
         isDragging = true;
-        content.style.transition = 'none'; // Remove transição para seguir o dedo
+        content.style.transition = 'none';
     });
 
     handle.addEventListener('touchmove', (e) => {
         if (!isDragging) return;
         currentY = e.touches[0].clientY;
         let deltaY = currentY - startY;
-        
-        if (deltaY > 0) { // Só permite arrastar para baixo
-            e.preventDefault(); // Evita scroll da página
+        if (deltaY > 0) {
+            e.preventDefault();
             content.style.transform = `translateY(${deltaY}px)`;
         }
     });
@@ -304,17 +374,12 @@ require __DIR__ . '/../../includes/header.php';
     handle.addEventListener('touchend', (e) => {
         if (!isDragging) return;
         isDragging = false;
-        content.style.transition = 'transform 0.3s ease-out'; // Devolve a suavidade
-        
+        content.style.transition = 'transform 0.3s ease-out';
         let deltaY = currentY - startY;
-        
-        // Se arrastou mais de 100px para baixo, fecha
         if (deltaY > 100) {
-            toggleMobileCart(); // Fecha o carrinho
-            // Reset do transform é feito pelo toggleMobileCart (via classe CSS)
+            toggleMobileCart();
             setTimeout(() => content.style.transform = '', 300);
         } else {
-            // Se soltou antes, volta para cima
             content.style.transform = '';
         }
     });
@@ -342,7 +407,7 @@ require __DIR__ . '/../../includes/header.php';
                 btn.classList.remove('bg-amber-400', 'text-slate-900', 'animate-pulse');
                 btn.innerHTML = '<i data-lucide="scan" class="w-5 h-5"></i>';
                 lucide.createIcons();
-                handlePayment({tagId: cleanID, paymentMethod: 'NFC'});
+                initiatePaymentProcess({tagId: cleanID, paymentMethod: 'NFC'});
             };
         } catch (error) {
             console.log("Erro NFC: " + error);
@@ -353,21 +418,6 @@ require __DIR__ . '/../../includes/header.php';
             }
         }
     }
-
-    // --- CÓDIGO DO LEITOR EXTERNO (ESP32/ARDUINO) ---
-    document.addEventListener('keydown', function(e) {
-        if (e.key === 'F9') {
-            e.preventDefault(); 
-            const input = document.getElementById('nfcInput');
-            if(window.innerWidth < 768 && !isMobileCartOpen) {
-                toggleMobileCart();
-            }
-            input.value = ''; 
-            input.focus();    
-            input.classList.add('bg-yellow-100');
-            setTimeout(() => input.classList.remove('bg-yellow-100'), 200);
-        }
-    });
 
     // --- UI HELPERS ---
     function toggleMobileCart() {
@@ -380,7 +430,7 @@ require __DIR__ . '/../../includes/header.php';
         } else {
             panel.classList.add('pointer-events-none', 'opacity-0');
             content.classList.add('translate-y-full');
-            content.style.transform = ''; // Garante reset do swipe
+            content.style.transform = ''; 
             isMobileCartOpen = false;
         }
     }
@@ -444,8 +494,50 @@ require __DIR__ . '/../../includes/header.php';
         lucide.createIcons();
     }
 
-    // --- PAYMENT ---
-    async function handlePayment(data) {
+    // --- NOVA LÓGICA DE PAGAMENTO COM PIN ---
+
+    // 1. Inicia o processo (chamado pelo botão ou NFC)
+    async function initiatePaymentProcess(data) {
+        if (data.paymentMethod === 'CASH') {
+            // Dinheiro não tem lógica de PIN, vai direto
+            finalizePayment(data);
+            return;
+        }
+
+        // Se for NFC, verifica se precisa de PIN
+        const total = parseFloat(document.getElementById('cartTotalDisplay').innerText.replace(/[^\d,]/g, '').replace(',', '.'));
+        
+        // Armazena dados temporariamente
+        pendingPaymentData = data;
+
+        // Pergunta ao servidor
+        try {
+            const res = await fetch('../../api/purchase.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    action: 'check_pin_requirement',
+                    tagId: data.tagId,
+                    amount: total
+                })
+            });
+            const check = await res.json();
+
+            if (check.required) {
+                // Abre Modal de PIN
+                openPinModal();
+            } else {
+                // Não precisa, finaliza direto
+                finalizePayment(data);
+            }
+
+        } catch (e) {
+            showToast("Erro ao verificar segurança do cartão.", 'error');
+        }
+    }
+
+    // 2. Finaliza a venda (com ou sem PIN)
+    async function finalizePayment(data) {
         const status = document.getElementById('paymentStatus');
         status.classList.remove('hidden'); 
         status.innerHTML = '<i class="lucide-loader-2 animate-spin inline-block mr-2 w-3 h-3"></i> Processando...';
@@ -466,7 +558,9 @@ require __DIR__ . '/../../includes/header.php';
                 document.getElementById('successStudentName').innerText = result.student_name || (data.paymentMethod === 'CASH' ? "Pagamento em Dinheiro" : "Venda Realizada");
                 overlay.classList.remove('hidden');
                 overlay.classList.add('flex');
+                
                 closeCashModal();
+                closePinModal(); // Fecha se estiver aberto
 
                 setTimeout(() => {
                     overlay.classList.add('hidden');
@@ -494,6 +588,43 @@ require __DIR__ . '/../../includes/header.php';
         }
     }
 
+    // 3. Funções do Modal de PIN
+    function openPinModal() {
+        document.getElementById('modalPin').classList.remove('hidden');
+        document.getElementById('modalPin').classList.add('flex');
+        document.getElementById('pinInput').value = '';
+    }
+
+    function closePinModal() {
+        document.getElementById('modalPin').classList.add('hidden');
+        document.getElementById('modalPin').classList.remove('flex');
+        pendingPaymentData = null;
+        document.getElementById('nfcInput').value = ''; // Limpa input principal
+    }
+
+    function appendPin(num) {
+        const input = document.getElementById('pinInput');
+        if (input.value.length < 6) input.value += num;
+    }
+
+    function clearPin() {
+        document.getElementById('pinInput').value = '';
+    }
+
+    function confirmPin() {
+        const pin = document.getElementById('pinInput').value;
+        if (pin.length < 4) {
+            showToast("Senha muito curta", "warning");
+            return;
+        }
+        // Adiciona o PIN aos dados pendentes e finaliza
+        if (pendingPaymentData) {
+            pendingPaymentData.pin = pin;
+            finalizePayment(pendingPaymentData);
+        }
+    }
+
+    // --- BOTÃO PRINCIPAL (OK) ---
     function processPayment(e) { 
         e.preventDefault(); 
         const tag = document.getElementById('nfcInput').value.trim();
@@ -501,13 +632,12 @@ require __DIR__ . '/../../includes/header.php';
             document.getElementById('nfcInput').focus();
             return;
         }
-        if(tag && cart.length > 0) handlePayment({tagId: tag, paymentMethod: 'NFC'});
-        document.getElementById('nfcInput').value = '';
+        // Alterado: Chama initiate em vez de handle direto
+        if(tag && cart.length > 0) initiatePaymentProcess({tagId: tag, paymentMethod: 'NFC'});
     }
 
-    function processCashPayment() { handlePayment({paymentMethod: 'CASH'}); }
+    function processCashPayment() { initiatePaymentProcess({paymentMethod: 'CASH'}); }
 
-    // --- OTHER UI LOGIC ---
     function openCashModal() {
         if(cart.length === 0) {
             showToast("Carrinho vazio! Adicione produtos.", "error");
