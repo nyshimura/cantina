@@ -15,47 +15,60 @@ try {
     }
 
     // 1. Verifica se o usuário existe nas tabelas especificadas
-    // A ordem importa: primeiro Pais, depois Alunos, depois Operadores
     $tables = ['parents', 'students', 'operators'];
     $userFound = false;
     $userName = '';
     $userTable = '';
 
     foreach ($tables as $table) {
-        // Verifica se o e-mail existe e está ativo (active = 1)
         $stmt = $pdo->prepare("SELECT name FROM $table WHERE email = ? AND active = 1 LIMIT 1");
         $stmt->execute([$email]);
         if ($row = $stmt->fetch()) {
             $userFound = true;
             $userName = $row['name'];
             $userTable = $table;
-            break; // Parar assim que encontrar (evita conflitos se houver e-mail igual)
+            break; 
         }
     }
 
-    // Se não achar ninguém, fingimos que enviou para segurança (evita descoberta de e-mails)
+    // Se não achar ninguém, fingimos que enviou para segurança
     if (!$userFound) {
         echo json_encode(['success' => true, 'message' => 'Se o e-mail existir, o link foi enviado.']); 
         exit;
     }
 
-    // 2. Gera Token Único
+    // 2. Configura Fuso Horário e Datas (CORREÇÃO TIMEZONE)
+    // Força o PHP a usar o horário de São Paulo para garantir sincronia
+    date_default_timezone_set('America/Sao_Paulo'); 
+    
+    $agora = date('Y-m-d H:i:s');
+    $expira = date('Y-m-d H:i:s', strtotime('+1 hour'));
+    
+    // Gera Token Único
     $token = bin2hex(random_bytes(32));
-    $expires = date('Y-m-d H:i:s', strtotime('+1 hour')); // Expira em 1 hora
 
     // 3. Salva na tabela password_resets
-    // (Certifique-se de ter rodado o SQL CREATE TABLE que mandei anteriormente)
-    $stmt = $pdo->prepare("INSERT INTO password_resets (email, token, expires_at) VALUES (?, ?, ?)");
-    $stmt->execute([$email, $token, $expires]);
+    // Inserimos created_at e expires_at manualmente para garantir coerência
+    $stmt = $pdo->prepare("INSERT INTO password_resets (email, token, created_at, expires_at) VALUES (?, ?, ?, ?)");
+    $stmt->execute([$email, $token, $agora, $expira]);
 
-    // 4. Monta o Link
-    // Detecta se é HTTP ou HTTPS
+    // 4. Monta o Link Dinâmico
+    // Detecta protocolo e host
     $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
     $host = $_SERVER['HTTP_HOST'];
     
-    // O usuário será redirecionado para esta página para criar a nova senha
-    // Certifique-se que o caminho 'views/reset_password.php' existirá
-    $link = "$protocol://$host/views/reset_password.php?token=$token";
+    // Detecta o diretório raiz do sistema automaticamente
+    $scriptPath = dirname($_SERVER['SCRIPT_NAME']); // .../api/auth
+    $systemRoot = dirname(dirname($scriptPath));    // .../ (raiz do sistema)
+
+    // Normaliza barras e remove barra final se for raiz
+    $systemRoot = str_replace('\\', '/', $systemRoot);
+    if ($systemRoot === '/' || $systemRoot === '.') {
+        $systemRoot = '';
+    }
+    
+    // O link aponta para a VIEW de reset
+    $link = "$protocol://$host$systemRoot/views/reset_password.php?token=$token";
 
     // 5. Prepara o E-mail
     $subject = "Recuperação de Senha - Cantina";
@@ -78,7 +91,7 @@ try {
         </div>
     ";
 
-    // 6. Envia usando a classe Mailer
+    // 6. Envia
     $mailer = new Mailer($pdo);
     if ($mailer->send($email, $subject, $body)) {
         echo json_encode(['success' => true]);
@@ -89,3 +102,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => $e->getMessage()]);
 }
+?>
