@@ -117,14 +117,23 @@ $token = $_GET['token'] ?? '';
             btn.innerText = "SALVANDO...";
 
             try {
-                // Caminho absoluto para garantir que ache a API
-                const res = await fetch('/api/auth/reset_password.php', {
+                // CAMINHO RELATIVO: Sai de /views e entra em /api
+                // Isso funciona tanto em localhost quanto em subpastas (/cantina)
+                const apiUrl = '../api/auth/reset_password.php';
+
+                const res = await fetch(apiUrl, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ token: token, password: p1 })
                 });
                 
-                const data = await res.json();
+                // Tenta ler o JSON. Se falhar, é erro de servidor (ex: 404 HTML)
+                let data;
+                try {
+                    data = await res.json();
+                } catch (jsonError) {
+                    throw new Error("Resposta inválida do servidor. Verifique o caminho da API.");
+                }
 
                 if (data.success) {
                     successState.classList.remove('hidden');
@@ -136,7 +145,7 @@ $token = $_GET['token'] ?? '';
                 }
 
             } catch (err) {
-                showError("Erro de conexão com o servidor.");
+                showError("Erro: " + err.message);
                 btn.disabled = false;
                 btn.innerText = "TENTAR NOVAMENTE";
             }
