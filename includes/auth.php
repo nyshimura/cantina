@@ -175,3 +175,29 @@ function decryptData($data) {
         return $data;
     }
 }
+
+/**
+ * Verifica se o responsável logado tem permissão para gerenciar o aluno.
+ * (Versão à prova de falhas do rowCount)
+ */
+function isParentAuthorizedForStudent($pdo, $parentId, $studentId) {
+    try {
+        $stmt = $pdo->prepare("
+            SELECT s.id 
+            FROM students s
+            LEFT JOIN student_co_parents scp ON scp.student_id = s.id AND scp.active = 1
+            WHERE s.id = ? AND (s.parent_id = ? OR scp.parent_id = ?)
+            LIMIT 1
+        ");
+        $stmt->execute([$studentId, $parentId, $parentId]);
+        
+        // Usando fetch() em vez de rowCount() para maior compatibilidade entre servidores
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return $result !== false;
+    } catch (PDOException $e) {
+        error_log("Erro na permissão de responsável: " . $e->getMessage());
+        return false;
+    }
+}
+?>
