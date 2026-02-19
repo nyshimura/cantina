@@ -19,12 +19,12 @@ if (!$studentId) {
 }
 
 try {
-    $check = $pdo->prepare("SELECT id FROM students WHERE id = ? AND parent_id = ?");
-    $check->execute([$studentId, $parentId]);
-    if (!$check->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Acesso negado.']);
+    // --- NOVA VALIDAÇÃO: Verifica se o Pai Logado tem permissão (Principal ou Co-Responsável) ---
+    if (!isParentAuthorizedForStudent($pdo, $parentId, $studentId)) {
+        echo json_encode(['success' => false, 'message' => 'Acesso negado. Você não tem permissão para alterar esta configuração.']);
         exit;
     }
+    // -------------------------------------------------------------------------------------------
 
     // JSON_UNESCAPED_UNICODE garante que salve "Diário" e não "Di\u00e1rio"
     $rechargeConfig = json_encode(
@@ -38,5 +38,6 @@ try {
     echo json_encode(['success' => true, 'message' => 'Configuração salva!']);
 
 } catch (Exception $e) {
-    echo json_encode(['success' => false, 'message' => 'Erro ao salvar.']);
+    echo json_encode(['success' => false, 'message' => 'Erro ao salvar: ' . $e->getMessage()]);
 }
+?>
