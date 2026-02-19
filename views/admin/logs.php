@@ -57,9 +57,12 @@ $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
 $permsRaw  = $_SESSION['permissions'] ?? '{}';
 $perms = json_decode($permsRaw, true) ?: [];
 
-function checkMobilePerm($key) {
-    global $perms, $userLevel;
-    return ($userLevel === 'ADMIN') || (isset($perms[$key]) && $perms[$key] === true);
+// Prevenção contra redeclaração de função
+if (!function_exists('checkMobilePerm')) {
+    function checkMobilePerm($key) {
+        global $perms, $userLevel;
+        return ($userLevel === 'ADMIN') || (isset($perms[$key]) && $perms[$key] === true);
+    }
 }
 
 $currentPage = basename($_SERVER['PHP_SELF']);
@@ -76,12 +79,14 @@ require __DIR__ . '/../../includes/header.php';
     <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-10 shrink-0">
         <div class="flex items-center gap-2 p-3 whitespace-nowrap">
             <?php 
-            function renderMobileLink($perm, $url, $label, $icon, $current) {
-                if (!checkMobilePerm($perm)) return;
-                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
-                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                echo "</a>";
+            if (!function_exists('renderMobileLink')) {
+                function renderMobileLink($perm, $url, $label, $icon, $current) {
+                    if (!checkMobilePerm($perm)) return;
+                    $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
+                    echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
+                    echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
+                    echo "</a>";
+                }
             }
             renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
             renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
@@ -136,7 +141,6 @@ require __DIR__ . '/../../includes/header.php';
                                 <?php foreach($logs as $log): 
                                     // Definição de Cores e Estilos baseado na Ação
                                     $badgeColor = 'bg-slate-100 text-slate-500';
-                                    $icon = ''; // Opcional, se quiser adicionar ícones na badge
 
                                     if(strpos($log['action'], 'REFUND') !== false) $badgeColor = 'bg-red-50 text-red-600 border-red-100';
                                     elseif(strpos($log['action'], 'PIX') !== false) $badgeColor = 'bg-emerald-50 text-emerald-600 border-emerald-100';
@@ -161,8 +165,16 @@ require __DIR__ . '/../../includes/header.php';
                                     <td class="px-6 md:px-8 py-5 min-w-[200px]">
                                         <p class="text-xs text-slate-600 leading-relaxed font-medium"><?= htmlspecialchars($log['description']) ?></p>
                                         <?php 
-                                        $impactData = json_decode($log['impact'], true);
-                                        $impactMsg = is_array($impactData) ? ($impactData['message'] ?? '') : $log['impact'];
+                                        
+                                        // CORREÇÃO: Trata valores nulos para evitar erro no PHP 8.1+
+                                        $impactRaw = $log['impact'] ?? null;
+                                        $impactData = null;
+                                        
+                                        if (is_string($impactRaw) && trim($impactRaw) !== '') {
+                                            $impactData = json_decode($impactRaw, true);
+                                        }
+
+                                        $impactMsg = is_array($impactData) ? ($impactData['message'] ?? '') : (string)$impactRaw;
                                         
                                         // Se for transferência, mostra detalhes extras se disponíveis
                                         if (empty($impactMsg) && $log['action'] === 'WALLET_TRANSFER' && is_array($impactData)) {
@@ -176,7 +188,7 @@ require __DIR__ . '/../../includes/header.php';
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 md:px-8 py-5 text-right font-mono text-[10px] text-slate-400 whitespace-nowrap">
-                                        <?= $log['ip_address'] ?>
+                                        <?= htmlspecialchars($log['ip_address'] ?? '0.0.0.0') ?>
                                     </td>
                                 </tr>
                                 <?php endforeach; ?>
