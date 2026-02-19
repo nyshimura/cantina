@@ -13,7 +13,7 @@ $name = trim($_POST['name'] ?? '');
 $cpf = trim($_POST['cpf'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
-$pin = $_POST['pin'] ?? ''; // <--- NOVO: Captura o PIN enviado pelo modal
+$pin = $_POST['pin'] ?? ''; 
 
 if (!$studentId || empty($name) || empty($cpf) || empty($email)) {
     echo json_encode(['success' => false, 'message' => 'Preencha os campos obrigatórios.']);
@@ -21,13 +21,12 @@ if (!$studentId || empty($name) || empty($cpf) || empty($email)) {
 }
 
 try {
-    // Verifica se o aluno pertence a este pai
-    $check = $pdo->prepare("SELECT id FROM students WHERE id = ? AND parent_id = ?");
-    $check->execute([$studentId, $parentId]);
-    if (!$check->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Acesso negado.']);
+    // --- NOVA VALIDAÇÃO: Verifica se o Pai Logado tem permissão (Principal ou Co-Responsável) ---
+    if (!isParentAuthorizedForStudent($pdo, $parentId, $studentId)) {
+        echo json_encode(['success' => false, 'message' => 'Acesso negado. Você não tem permissão para editar os dados deste aluno.']);
         exit;
     }
+    // -------------------------------------------------------------------------------------------
 
     // GERA O AVATAR AUTOMATICAMENTE BASEADO NO NOVO NOME
     $avatarUrl = "https://api.dicebear.com/9.x/adventurer/svg?seed=" . urlencode($name);
@@ -42,7 +41,7 @@ try {
         $params[] = password_hash($password, PASSWORD_DEFAULT);
     }
 
-    // Lógica da Senha de Compra (PIN) - NOVO
+    // Lógica da Senha de Compra (PIN)
     if (!empty($pin)) {
         // Validação básica de segurança
         if (!ctype_digit($pin)) {
@@ -70,3 +69,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao salvar perfil: ' . $e->getMessage()]);
 }
+?>
