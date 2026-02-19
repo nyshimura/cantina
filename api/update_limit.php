@@ -17,14 +17,12 @@ if (!$studentId) {
 }
 
 try {
-    // Verifica se o aluno pertence ao pai
-    $check = $pdo->prepare("SELECT id FROM students WHERE id = ? AND parent_id = ?");
-    $check->execute([$studentId, $parentId]);
-    
-    if (!$check->fetch()) {
-        echo json_encode(['success' => false, 'message' => 'Acesso negado.']);
+    // --- NOVA VALIDAÇÃO: Verifica se o Pai Logado tem permissão (Principal ou Co-Responsável) ---
+    if (!isParentAuthorizedForStudent($pdo, $parentId, $studentId)) {
+        echo json_encode(['success' => false, 'message' => 'Acesso negado. Você não tem permissão para alterar o limite deste aluno.']);
         exit;
     }
+    // -------------------------------------------------------------------------------------------
 
     // Atualiza o limite na tabela students
     $stmt = $pdo->prepare("UPDATE students SET daily_limit = ? WHERE id = ?");
@@ -37,3 +35,4 @@ try {
 } catch (Exception $e) {
     echo json_encode(['success' => false, 'message' => 'Erro ao salvar: ' . $e->getMessage()]);
 }
+?>
