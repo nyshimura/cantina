@@ -297,6 +297,10 @@ try {
     }
 
     if ($action == 'check') {
+        // Roda migrações durante o check para garantir que tabelas novas sejam criadas
+        // logo após o reload da página pós-atualização.
+        if ($conn) runMigrations($conn, $response);
+        
         if ($response['update_available']) {
             addLog($response, "Nova versão v$remote disponível.", 'success');
         } elseif ($remote === 'Falha' || $remote === null) {
@@ -315,6 +319,14 @@ try {
             addLog($resp, "Erro ao conectar ao GitHub.", 'error');
         }
     }
+    elseif ($action == 'migrate') {
+        // Roda apenas as migrações (útil para pós-atualização, já que o script antigo em memória
+        // não tem as migrações novas no momento do perform_update)
+        if ($conn) runMigrations($conn, $response);
+        $response['version_local'] = getLocalVersion();
+        addLog($response, "Migrações do banco de dados verificadas/aplicadas.", 'success');
+    }
+    
     $response['success'] = true;
 } catch (Exception $e) {
     addLog($response, "Erro Fatal: " . $e->getMessage(), 'error');
