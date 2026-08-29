@@ -257,9 +257,36 @@ require __DIR__ . '/../../includes/header.php';
                 </div>
             </div>
 
-            <div>
-                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">URL da Imagem do Produto</label>
-                <input type="text" name="image_url" id="prodImage" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 font-mono text-xs transition-all">
+            <div class="space-y-4">
+                <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Foto do Produto</label>
+                
+                <!-- Nova Área de Upload Local -->
+                <div class="border-2 border-dashed border-slate-200 rounded-2xl p-4 text-center hover:bg-slate-50 hover:border-emerald-500 transition-all cursor-pointer relative" onclick="document.getElementById('prodFileInput').click()">
+                    <input type="file" id="prodFileInput" accept="image/*" class="hidden" onchange="handleImageUpload(this)">
+                    <div id="uploadPlaceholder" class="flex flex-col items-center justify-center gap-2 text-slate-400">
+                        <i data-lucide="upload-cloud" class="w-6 h-6"></i>
+                        <span class="text-xs font-bold">Clique para carregar uma foto</span>
+                        <span class="text-[9px] uppercase tracking-widest">JPG, PNG, WebP (Otimizado automaticamente)</span>
+                    </div>
+                    <div id="uploadPreviewContainer" class="hidden flex items-center gap-4 text-left">
+                        <img id="uploadPreview" src="" class="w-12 h-12 rounded-xl object-cover border border-slate-200">
+                        <div>
+                            <p class="text-xs font-bold text-slate-700">Foto carregada e otimizada</p>
+                            <p class="text-[10px] text-emerald-600 font-bold" id="uploadStatus">Pronto para salvar</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <hr class="flex-1 border-slate-100">
+                    <span class="text-[10px] font-bold text-slate-300 uppercase tracking-widest">OU</span>
+                    <hr class="flex-1 border-slate-100">
+                </div>
+
+                <!-- Input de URL antigo (Para manter compatibilidade e opções) -->
+                <div>
+                    <input type="text" name="image_url" id="prodImage" placeholder="Cole uma URL da internet..." class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 font-mono text-xs transition-all">
+                </div>
             </div>
 
             <div class="pt-4">
@@ -307,17 +334,102 @@ require __DIR__ . '/../../includes/header.php';
     // --- LÓGICA DE PRODUTOS ---
     function openProductModal(p = null) {
         const form = document.getElementById('formProduct');
+        
+        // Reseta uploads
+        document.getElementById('prodFileInput').value = '';
+        document.getElementById('uploadPreviewContainer').classList.add('hidden');
+        document.getElementById('uploadPlaceholder').classList.remove('hidden');
+        document.getElementById('uploadStatus').innerText = 'Pronto para salvar';
+
         if(p) {
             document.getElementById('prodId').value = p.id;
             document.getElementById('prodName').value = p.name;
             document.getElementById('prodCategory').value = p.category_id;
             document.getElementById('prodPrice').value = p.price;
             document.getElementById('prodImage').value = p.image_url;
+            
+            // Se já for uma URL de upload, mostramos no preview
+            if (p.image_url && p.image_url.includes('uploads/products/')) {
+                document.getElementById('uploadPreview').src = p.image_url;
+                document.getElementById('uploadPlaceholder').classList.add('hidden');
+                document.getElementById('uploadPreviewContainer').classList.remove('hidden');
+            }
         } else {
             form.reset();
             document.getElementById('prodId').value = '';
         }
         document.getElementById('modalProduct').classList.replace('hidden', 'flex');
+    }
+
+    async function handleImageUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        
+        // Verifica se é imagem
+        if (!file.type.startsWith('image/')) {
+            alert('Por favor, selecione uma imagem válida.');
+            return;
+        }
+
+        document.getElementById('uploadPlaceholder').classList.add('hidden');
+        document.getElementById('uploadPreviewContainer').classList.remove('hidden');
+        document.getElementById('uploadStatus').innerText = 'Otimizando...';
+        document.getElementById('uploadStatus').className = 'text-[10px] text-amber-500 font-bold animate-pulse';
+
+        try {
+            // Otimização no Client-Side (Canvas)
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = (e) => {
+                const img = new Image();
+                img.src = e.target.result;
+                img.onload = async () => {
+                    const MAX_WIDTH = 800;
+                    const MAX_HEIGHT = 800;
+                    let width = img.width;
+                    let height = img.height;
+
+                    if (width > height) {
+                        if (width > MAX_WIDTH) { height *= MAX_WIDTH / width; width = MAX_WIDTH; }
+                    } else {
+                        if (height > MAX_HEIGHT) { width *= MAX_HEIGHT / height; height = MAX_HEIGHT; }
+                    }
+
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+
+                    // Converte para WebP a 80% qualidade
+                    const dataUrl = canvas.toDataURL('image/webp', 0.8);
+                    
+                    document.getElementById('uploadPreview').src = dataUrl;
+                    document.getElementById('uploadStatus').innerText = 'Enviando...';
+
+                    // Envia para o servidor
+                    const res = await fetch('../../api/upload_image.php', {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ image: dataUrl })
+                    });
+                    const result = await res.json();
+                    
+                    if (result.success) {
+                        // Preenche o input de URL com a URL local salva
+                        document.getElementById('prodImage').value = result.url;
+                        document.getElementById('uploadStatus').innerText = 'Imagem Salva!';
+                        document.getElementById('uploadStatus').className = 'text-[10px] text-emerald-600 font-bold';
+                    } else {
+                        throw new Error(result.message);
+                    }
+                };
+            };
+        } catch (err) {
+            document.getElementById('uploadStatus').innerText = 'Falha no upload';
+            document.getElementById('uploadStatus').className = 'text-[10px] text-red-600 font-bold';
+            alert("Erro ao processar imagem: " + err.message);
+        }
     }
 
     async function saveProduct(form) {

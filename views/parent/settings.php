@@ -27,8 +27,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['new_child_name'])) {
     if ($stmt->fetch()) {
         $error = "Email já cadastrado.";
     } else {
+        $seed = !empty($_POST['avatar_seed']) ? $_POST['avatar_seed'] : $name;
+        $avatarUrl = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' . urlencode($seed);
         $stmt = $pdo->prepare("INSERT INTO students (parent_id, name, email, cpf, password_hash, avatar_url) VALUES (?, ?, ?, ?, ?, ?)");
-        $stmt->execute([$parentId, $name, $email, $cpf, password_hash('123', PASSWORD_DEFAULT), 'https://api.dicebear.com/7.x/avataaars/svg?seed='.urlencode($name)]);
+        $stmt->execute([$parentId, $name, $email, $cpf, password_hash('123', PASSWORD_DEFAULT), $avatarUrl]);
         $success = "Dependente cadastrado!";
     }
 }
@@ -84,10 +86,76 @@ require __DIR__ . '/../../includes/header.php';
                 <div><label class="block text-sm font-bold text-slate-700 mb-1">CPF</label><input type="text" name="new_child_cpf" required class="w-full border rounded-lg px-4 py-2"></div>
                 <div><label class="block text-sm font-bold text-slate-700 mb-1">Email (Login)</label><input type="email" name="new_child_email" required class="w-full border rounded-lg px-4 py-2"></div>
             </div>
-            <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-blue-700">Cadastrar Aluno</button>
+            <div class="mb-6 bg-slate-50 border border-slate-200 rounded-xl p-6">
+                <label class="block text-sm font-bold text-slate-700 mb-4">Personalizar Avatar <span class="text-xs font-normal text-slate-500">(Opcional)</span></label>
+                <div class="flex flex-col md:flex-row gap-8 items-center">
+                    
+                    <div id="avatarMap" class="relative w-48 h-48 rounded-2xl cursor-crosshair overflow-hidden shadow-inner touch-none" style="background: conic-gradient(from 180deg at 50% 50%, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff00ff, #ff0000);">
+                        <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(255,255,255,1), rgba(255,255,255,0) 50%, rgba(0,0,0,0) 50%, rgba(0,0,0,1));"></div>
+                        <div id="avatarPointer" class="absolute w-4 h-4 bg-white border-2 border-slate-800 rounded-full shadow-md pointer-events-none -translate-x-1/2 -translate-y-1/2" style="top: 50%; left: 50%;"></div>
+                    </div>
+                    
+                    <div class="flex flex-col items-center">
+                        <img id="avatarPreview" src="https://api.dicebear.com/9.x/adventurer/svg?seed=Novo" class="w-24 h-24 rounded-full border-4 border-white shadow-lg mb-2 bg-white">
+                        <span class="text-xs font-bold text-slate-500">Preview do Personagem</span>
+                    </div>
+                </div>
+                <input type="hidden" name="avatar_seed" id="avatarSeed" value="Novo">
+            </div>
+
+            <button type="submit" class="bg-blue-600 text-white px-6 py-3 w-full rounded-xl font-bold hover:bg-blue-700 shadow-md">Cadastrar Aluno</button>
         </form>
     </div>
 </div>
-<script>lucide.createIcons();</script>
+<script>
+    lucide.createIcons();
+
+    // Lógica do Mapa Cartesiano de Avatar
+    const map = document.getElementById('avatarMap');
+    const pointer = document.getElementById('avatarPointer');
+    const preview = document.getElementById('avatarPreview');
+    const seedInput = document.getElementById('avatarSeed');
+    
+    let isDragging = false;
+    let debounceTimer;
+
+    function updateAvatar(e) {
+        const rect = map.getBoundingClientRect();
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        let x = clientX - rect.left;
+        let y = clientY - rect.top;
+        
+        x = Math.max(0, Math.min(x, rect.width));
+        y = Math.max(0, Math.min(y, rect.height));
+        
+        pointer.style.left = x + 'px';
+        pointer.style.top = y + 'px';
+        
+        // Gera um HEX baseado na posição (X=Hue, Y=Lightness/Randomness)
+        const r = Math.round((x / rect.width) * 255);
+        const b = Math.round((y / rect.height) * 255);
+        const g = Math.round(((rect.width - x) / rect.width) * 255);
+        
+        const hex = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        seedInput.value = hex;
+
+        // Debounce para não travar a API do dicebear enquanto arrasta
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(() => {
+            preview.src = `https://api.dicebear.com/9.x/adventurer/svg?seed=${hex}`;
+        }, 100);
+    }
+
+    map.addEventListener('mousedown', (e) => { isDragging = true; updateAvatar(e); });
+    window.addEventListener('mousemove', (e) => { if(isDragging) updateAvatar(e); });
+    window.addEventListener('mouseup', () => { isDragging = false; });
+    
+    map.addEventListener('touchstart', (e) => { isDragging = true; updateAvatar(e); }, {passive: false});
+    window.addEventListener('touchmove', (e) => { if(isDragging) { updateAvatar(e); e.preventDefault(); } }, {passive: false});
+    window.addEventListener('touchend', () => { isDragging = false; });
+
+</script>
 </body>
 </html>

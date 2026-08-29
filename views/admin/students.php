@@ -10,9 +10,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $input['action'] ?? '';
     try {
         if ($action === 'edit') {
-            // Lógica inteligente: Só atualiza a senha se o admin digitou algo
             $sql = "UPDATE students SET name = ?, email = ?, cpf = ?";
             $params = [$input['name'], $input['email'], $input['cpf']];
+
+            if (!empty($input['avatar_seed'])) {
+                $sql .= ", avatar_url = ?";
+                $params[] = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' . urlencode($input['avatar_seed']);
+            }
 
             if (!empty($input['pin'])) {
                 $sql .= ", purchase_pin = ?";
@@ -28,12 +32,84 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif ($action === 'nfc') {
             $studentId = $input['id'];
             $tagId = strtoupper(trim($input['tag_id']));
+            $operatorId = $_SESSION['user_id'];
+            $ip = $_SERVER['REMOTE_ADDR'];
+            $now = date('Y-m-d H:i:s');
+            
             $pdo->beginTransaction();
-            // Libera a tag anterior do aluno (o saldo permanece na tag liberada)
-            $pdo->prepare("UPDATE nfc_tags SET current_student_id = NULL, status = 'SPARE' WHERE current_student_id = ?")->execute([$studentId]);
+
             if (!empty($tagId)) {
-                // Vincula a nova tag ao aluno (o aluno passa a usar o saldo desta nova tag)
-                $pdo->prepare("UPDATE nfc_tags SET current_student_id = ?, status = 'ACTIVE' WHERE tag_id = ?")->execute([$studentId, $tagId]);
+                // 1. Valida se a tag destino está SPARE (evitar "roubo")
+                $stmtCheck = $pdo->prepare("SELECT status, balance FROM nfc_tags WHERE tag_id = ? FOR UPDATE");
+                $stmtCheck->execute([$tagId]);
+                $destTag = $stmtCheck->fetch();
+
+                if (!$destTag) {
+                    throw new Exception("Tag não encontrada no sistema.");
+                }
+                if ($destTag['status'] !== 'SPARE') {
+                    throw new Exception("Esta tag já está em uso ou inativa.");
+                }
+
+                // 2. Busca a tag atual do aluno para transferir saldo
+                $stmtOldTag = $pdo->prepare("SELECT tag_id, balance FROM nfc_tags WHERE current_student_id = ? AND status = 'ACTIVE' FOR UPDATE");
+                $stmtOldTag->execute([$studentId]);
+                $oldTag = $stmtOldTag->fetch();
+
+                $transferAmount = 0;
+                $oldTagId = null;
+
+                if ($oldTag) {
+                    $transferAmount = $oldTag['balance'];
+                    $oldTagId = $oldTag['tag_id'];
+
+                    // Zera e libera a tag antiga
+                    $pdo->prepare("UPDATE nfc_tags SET current_student_id = NULL, status = 'SPARE', balance = 0 WHERE tag_id = ?")
+                        ->execute([$oldTagId]);
+                }
+
+                // 3. Busca e zera o pending_balance
+                $stmtPending = $pdo->prepare("SELECT pending_balance FROM students WHERE id = ? FOR UPDATE");
+                $stmtPending->execute([$studentId]);
+                $pendingBalance = $stmtPending->fetchColumn();
+
+                if ($pendingBalance > 0) {
+                    $transferAmount += $pendingBalance;
+                    $pdo->prepare("UPDATE students SET pending_balance = 0 WHERE id = ?")->execute([$studentId]);
+                }
+
+                // 4. Vincula a nova tag e adiciona os saldos (da tag velha + pending)
+                $pdo->prepare("UPDATE nfc_tags SET current_student_id = ?, status = 'ACTIVE', balance = balance + ? WHERE tag_id = ?")
+                    ->execute([$studentId, $transferAmount, $tagId]);
+
+                // 5. Gera Log se houve transferência de dinheiro
+                if ($transferAmount > 0) {
+                    $desc = "Transferência Automática de Saldo: R$ " . number_format($transferAmount, 2, ',', '.');
+                    if ($oldTagId) $desc .= " da Tag antiga ($oldTagId)";
+                    if ($pendingBalance > 0) $desc .= " (incluindo saldo Pix pendente)";
+                    $desc .= " para a Tag nova ($tagId).";
+                    
+                    $impactJson = json_encode(['message' => "Transferência de R$ " . number_format($transferAmount, 2, ',', '.')]);
+                    $pdo->prepare("INSERT INTO audit_logs (operator_id, action, description, ip_address, impact, timestamp) VALUES (?, 'BALANCE_TRANSFER', ?, ?, ?, ?)")
+                        ->execute([$operatorId, $desc, $ip, $impactJson, $now]);
+                }
+            } else {
+                // Remove a tag atual e envia saldo para pending_balance
+                $stmtOldTag = $pdo->prepare("SELECT tag_id, balance FROM nfc_tags WHERE current_student_id = ? AND status = 'ACTIVE' FOR UPDATE");
+                $stmtOldTag->execute([$studentId]);
+                $oldTag = $stmtOldTag->fetch();
+
+                if ($oldTag) {
+                    $pdo->prepare("UPDATE students SET pending_balance = pending_balance + ? WHERE id = ?")->execute([$oldTag['balance'], $studentId]);
+                    $pdo->prepare("UPDATE nfc_tags SET current_student_id = NULL, status = 'SPARE', balance = 0 WHERE tag_id = ?")->execute([$oldTag['tag_id']]);
+                    
+                    if ($oldTag['balance'] > 0) {
+                        $desc = "Tag removida. Saldo de R$ " . number_format($oldTag['balance'], 2, ',', '.') . " guardado em Saldo Pendente.";
+                        $impactJson = json_encode(['message' => "Guarda de Saldo"]);
+                        $pdo->prepare("INSERT INTO audit_logs (operator_id, action, description, ip_address, impact, timestamp) VALUES (?, 'TAG_REMOVED', ?, ?, ?, ?)")
+                            ->execute([$operatorId, $desc, $ip, $impactJson, $now]);
+                    }
+                }
             }
             $pdo->commit();
         } elseif ($action === 'deactivate') {
@@ -54,7 +130,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $statusFilter = $_GET['status'] ?? 'ativos';
 $search = $_GET['search'] ?? '';
 
-// SQL ATUALIZADO: Busca has_pin para mostrar o cadeado na tela
+// SQL ATUALIZADO: Busca has_pin para mostrar o cadeado na tela, e o pending_balance
 $sql = "SELECT s.*, p.name as parent_name, n.tag_id, n.balance as tag_balance,
         (s.purchase_pin IS NOT NULL AND s.purchase_pin != '') as has_pin 
         FROM students s 
@@ -93,36 +169,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 require __DIR__ . '/../../includes/header.php';
 ?>
 
-<a href="../../views/logout.php" class="md:hidden fixed top-3 right-4 z-[60] bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-slate-800 transition-colors">
-    Sair
-</a>
+
 
 <div class="flex flex-col h-screen w-full overflow-hidden bg-slate-50">
     
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
-
-    <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-10 shrink-0">
-        <div class="flex items-center gap-2 p-3 whitespace-nowrap">
-            <?php 
-            function renderMobileLink($perm, $url, $label, $icon, $current) {
-                if (!checkMobilePerm($perm)) return;
-                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
-                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                echo "</a>";
-            }
-
-            renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
-            renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
-            renderMobileLink('canManageFinancial', 'financial.php', 'Financeiro', 'dollar-sign', $currentPage);
-            renderMobileLink('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $currentPage);
-            renderMobileLink('canManageParents', 'parents.php', 'Responsáveis', 'users', $currentPage);
-            renderMobileLink('canManageTags', 'tags.php', 'Tags NFC', 'rss', $currentPage);
-            renderMobileLink('canManageTeam', 'team.php', 'Equipe', 'shield-check', $currentPage);
-            renderMobileLink('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $currentPage);
-            ?>
-        </div>
-    </div>
 
     <div class="flex flex-1 overflow-hidden">
         
@@ -187,9 +238,16 @@ require __DIR__ . '/../../includes/header.php';
                                                 </span>
                                             </div>
                                         <?php else: ?>
-                                            <button onclick='openNfcModal(<?= json_encode($s) ?>)' class="mx-auto px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 uppercase flex items-center gap-1.5 hover:bg-slate-200 transition-all border border-slate-200 w-fit whitespace-nowrap">
-                                                <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Pendente
-                                            </button>
+                                            <div class="flex flex-col items-center gap-1">
+                                                <button onclick='openNfcModal(<?= json_encode($s) ?>)' class="mx-auto px-2.5 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500 uppercase flex items-center gap-1.5 hover:bg-slate-200 transition-all border border-slate-200 w-fit whitespace-nowrap">
+                                                    <i data-lucide="alert-circle" class="w-3.5 h-3.5"></i> Sem Tag
+                                                </button>
+                                                <?php if($s['pending_balance'] > 0): ?>
+                                                    <span class="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 rounded-md border border-amber-100 whitespace-nowrap">
+                                                        Pendente: R$ <?= number_format($s['pending_balance'], 2, ',', '.') ?>
+                                                    </span>
+                                                <?php endif; ?>
+                                            </div>
                                         <?php endif; ?>
                                     </td>
                                     <td class="px-6 md:px-8 py-4 text-center">
@@ -260,12 +318,19 @@ require __DIR__ . '/../../includes/header.php';
             <h3 class="text-xl font-bold text-slate-800 flex items-center gap-2"><i data-lucide="user" class="text-emerald-600"></i> Detalhes do Aluno</h3>
             <button onclick="closeModals()" class="text-slate-400 hover:text-slate-600 transition-colors"><i data-lucide="x" class="w-6 h-6"></i></button>
         </div>
-        <form onsubmit="event.preventDefault(); handleAction('edit', {id: currentStudentId, name: document.getElementById('editName').value, email: document.getElementById('editEmail').value, cpf: document.getElementById('editCpf').value, pin: document.getElementById('editPin').value}, this.querySelector('button[type=submit]'))" class="p-8 space-y-6">
-            <div class="bg-slate-50 p-5 rounded-2xl flex items-center gap-5">
-                <img id="editAvatar" src="" class="w-16 h-16 rounded-full border-4 border-white shadow-md">
-                <div>
+        <form onsubmit="event.preventDefault(); handleAction('edit', {id: currentStudentId, name: document.getElementById('editName').value, email: document.getElementById('editEmail').value, cpf: document.getElementById('editCpf').value, pin: document.getElementById('editPin').value, avatar_seed: document.getElementById('editAvatarSeed').value}, this.querySelector('button[type=submit]'))" class="p-8 space-y-6">
+            <div class="bg-slate-50 p-5 rounded-2xl flex items-center gap-5 border border-slate-100">
+                <img id="editAvatar" src="" class="w-16 h-16 rounded-full border-4 border-white shadow-md bg-white shrink-0">
+                <div class="flex-1">
                     <p id="editNameHeader" class="font-bold text-slate-800 text-lg leading-tight"></p>
-                    <p id="editEmailHeader" class="text-sm text-slate-500 font-medium"></p>
+                    <p id="editEmailHeader" class="text-sm text-slate-500 font-medium mb-3"></p>
+                    
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2">Mudar Avatar (Deslize no mapa)</label>
+                    <div id="editAvatarMap" class="relative w-full h-10 rounded-xl cursor-crosshair overflow-hidden shadow-inner touch-none" style="background: conic-gradient(from 180deg at 50% 50%, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff00ff, #ff0000);">
+                        <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(255,255,255,1), rgba(255,255,255,0) 50%, rgba(0,0,0,0) 50%, rgba(0,0,0,1));"></div>
+                        <div id="editAvatarPointer" class="absolute w-4 h-4 bg-white border-2 border-slate-800 rounded-full shadow-md pointer-events-none -translate-x-1/2 -translate-y-1/2" style="top: 50%; left: 50%;"></div>
+                    </div>
+                    <input type="hidden" id="editAvatarSeed" value="">
                 </div>
             </div>
             <div class="space-y-4">
@@ -412,6 +477,7 @@ require __DIR__ . '/../../includes/header.php';
         document.getElementById('editName').value = s.name;
         document.getElementById('editEmail').value = s.email;
         document.getElementById('editCpf').value = s.cpf || '';
+        document.getElementById('editAvatarSeed').value = ''; // Reseta seeder de edição
         // Limpa o campo de senha para não mostrar hash
         document.getElementById('editPin').value = '';
         document.getElementById('modalEdit').classList.replace('hidden', 'flex');
@@ -508,9 +574,18 @@ require __DIR__ . '/../../includes/header.php';
         if (type === 'deactivate') {
             title.innerText = "Desativar Aluno?";
             actionText.innerText = "desativar";
-            checkLabel.innerText = "O aluno não poderá mais realizar compras. O saldo atual da tag vinculada será preservado.";
+            
+            // Aviso de devolução de saldo
+            const totalBalance = (parseFloat(s.tag_balance) || 0) + (parseFloat(s.pending_balance) || 0);
+            if (totalBalance > 0) {
+                checkLabel.innerHTML = `<span class="text-red-600 font-bold block mb-1">ATENÇÃO! Aluno possui saldo ativo: R$ ${totalBalance.toFixed(2).replace('.', ',')}</span> O aluno não poderá realizar compras. A responsabilidade por devolver o saldo manualmente aos pais é da instituição. Confirmo que estou ciente.`;
+                iconContainer.className = "w-20 h-20 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner ring-4 ring-red-50";
+            } else {
+                checkLabel.innerText = "O aluno não poderá mais realizar compras. O cadastro ficará inativo e a tag será preservada.";
+                iconContainer.className = "w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner";
+            }
+            
             btn.innerText = "Confirmar Desativação";
-            iconContainer.className = "w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-8 shadow-inner";
             btn.className = "w-full py-5 rounded-2xl font-bold transition-all cursor-not-allowed text-white bg-red-200";
         } else {
             title.innerText = "Reativar Aluno?";
@@ -551,6 +626,49 @@ require __DIR__ . '/../../includes/header.php';
         btn.classList.add('cursor-not-allowed');
         document.getElementById('modalLinkParent').classList.replace('hidden', 'flex');
     }
+    // Lógica do Mapa Cartesiano do Avatar
+    const editMap = document.getElementById('editAvatarMap');
+    const editPointer = document.getElementById('editAvatarPointer');
+    const editPreview = document.getElementById('editAvatar');
+    const editSeedInput = document.getElementById('editAvatarSeed');
+    
+    let isDraggingAvatar = false;
+    let avatarDebounceTimer;
+
+    function updateEditAvatar(e) {
+        const rect = editMap.getBoundingClientRect();
+        let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+        let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+        let x = clientX - rect.left;
+        let y = clientY - rect.top;
+        
+        x = Math.max(0, Math.min(x, rect.width));
+        y = Math.max(0, Math.min(y, rect.height));
+        
+        editPointer.style.left = x + 'px';
+        editPointer.style.top = y + 'px';
+        
+        const r = Math.round((x / rect.width) * 255);
+        const b = Math.round((y / rect.height) * 255);
+        const g = Math.round(((rect.width - x) / rect.width) * 255);
+        
+        const hex = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+        editSeedInput.value = hex;
+
+        clearTimeout(avatarDebounceTimer);
+        avatarDebounceTimer = setTimeout(() => {
+            editPreview.src = `https://api.dicebear.com/9.x/adventurer/svg?seed=${hex}`;
+        }, 100);
+    }
+
+    editMap.addEventListener('mousedown', (e) => { isDraggingAvatar = true; updateEditAvatar(e); });
+    window.addEventListener('mousemove', (e) => { if(isDraggingAvatar) updateEditAvatar(e); });
+    window.addEventListener('mouseup', () => { isDraggingAvatar = false; });
+    
+    editMap.addEventListener('touchstart', (e) => { isDraggingAvatar = true; updateEditAvatar(e); }, {passive: false});
+    window.addEventListener('touchmove', (e) => { if(isDraggingAvatar) { updateEditAvatar(e); e.preventDefault(); } }, {passive: false});
+    window.addEventListener('touchend', () => { isDraggingAvatar = false; });
 </script>
 </body>
 </html>

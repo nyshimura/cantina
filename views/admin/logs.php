@@ -69,36 +69,10 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 require __DIR__ . '/../../includes/header.php';
 ?>
 
-<a href="../../views/logout.php" class="md:hidden fixed top-3 right-4 z-[60] bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md">
-    Sair
-</a>
+
 
 <div class="flex flex-col h-screen w-full overflow-hidden bg-slate-50">
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
-
-    <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-10 shrink-0">
-        <div class="flex items-center gap-2 p-3 whitespace-nowrap">
-            <?php 
-            if (!function_exists('renderMobileLink')) {
-                function renderMobileLink($perm, $url, $label, $icon, $current) {
-                    if (!checkMobilePerm($perm)) return;
-                    $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
-                    echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                    echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                    echo "</a>";
-                }
-            }
-            renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
-            renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
-            renderMobileLink('canManageFinancial', 'financial.php', 'Financeiro', 'dollar-sign', $currentPage);
-            renderMobileLink('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $currentPage);
-            renderMobileLink('canManageParents', 'parents.php', 'Responsáveis', 'users', $currentPage);
-            renderMobileLink('canManageTags', 'tags.php', 'Tags NFC', 'rss', $currentPage);
-            renderMobileLink('canManageTeam', 'team.php', 'Equipe', 'shield-check', $currentPage);
-            renderMobileLink('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $currentPage);
-            ?>
-        </div>
-    </div>
 
     <div class="flex flex-1 overflow-hidden">
         <?php include __DIR__ . '/../../includes/sidebar.php'; ?>

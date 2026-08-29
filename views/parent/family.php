@@ -31,20 +31,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['coparent_email'])) {
             $newParentId = $pdo->lastInsertId();
         }
 
-        // 2. Vincula aos filhos do pai atual (apenas os que ele é dono principal)
-        $stmt = $pdo->prepare("SELECT id FROM students WHERE parent_id = ?");
-        $stmt->execute([$parentId]);
-        $myStudents = $stmt->fetchAll();
-
+        // 2. Vincula aos filhos do pai atual que foram SELECIONADOS
+        $selectedStudents = $_POST['student_ids'] ?? [];
         $linkedCount = 0;
-        foreach ($myStudents as $s) {
-            $stmt = $pdo->prepare("INSERT IGNORE INTO student_co_parents (student_id, parent_id) VALUES (?, ?)");
-            $stmt->execute([$s['id'], $newParentId]);
-            if ($stmt->rowCount() > 0) $linkedCount++;
+
+        if (!empty($selectedStudents)) {
+            foreach ($selectedStudents as $sId) {
+                // Valida se o aluno pertence ao pai principal
+                $stmtCheck = $pdo->prepare("SELECT id FROM students WHERE id = ? AND parent_id = ?");
+                $stmtCheck->execute([$sId, $parentId]);
+                if ($stmtCheck->fetch()) {
+                    $stmtLink = $pdo->prepare("INSERT IGNORE INTO student_co_parents (student_id, parent_id) VALUES (?, ?)");
+                    $stmtLink->execute([$sId, $newParentId]);
+                    if ($stmtLink->rowCount() > 0) $linkedCount++;
+                }
+            }
         }
 
         $pdo->commit();
-        $msg = $linkedCount > 0 ? "Responsável vinculado com sucesso!" : "Responsável criado, mas você não tem filhos principais para vincular.";
+        $msg = $linkedCount > 0 ? "Responsável vinculado aos alunos selecionados com sucesso!" : "Responsável criado, mas nenhum aluno válido foi selecionado para vinculação.";
 
     } catch (Exception $e) {
         $pdo->rollBack();
@@ -53,15 +58,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['coparent_email'])) {
 }
 
 // Listar Co-Responsáveis
-// Logica: Pega todos os co-parentes vinculados a qualquer filho que EU sou o dono principal
-$sql = "SELECT DISTINCT p.* 
+// Logica: Pega todos os co-parentes vinculados a qualquer filho que EU sou o dono principal e agrupa os nomes
+$sql = "SELECT p.*, GROUP_CONCAT(s.name SEPARATOR ', ') as linked_students 
         FROM parents p
         JOIN student_co_parents scp ON p.id = scp.parent_id
         JOIN students s ON scp.student_id = s.id
-        WHERE s.parent_id = ?";
+        WHERE s.parent_id = ?
+        GROUP BY p.id";
 $stmt = $pdo->prepare($sql);
 $stmt->execute([$parentId]);
 $coParents = $stmt->fetchAll();
+
+// Listar meus filhos para o checkbox
+$stmt = $pdo->prepare("SELECT id, name, avatar_url FROM students WHERE parent_id = ? AND active = 1");
+$stmt->execute([$parentId]);
+$myStudentsList = $stmt->fetchAll();
 
 require __DIR__ . '/../../includes/header.php';
 ?>
@@ -90,12 +101,13 @@ require __DIR__ . '/../../includes/header.php';
             <div class="p-8 text-center text-slate-500">Nenhum responsável adicional cadastrado.</div>
         <?php else: ?>
             <table class="w-full text-left">
-                <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase"><tr><th class="px-6 py-3">Nome</th><th class="px-6 py-3">Email</th><th class="px-6 py-3 text-right">Ação</th></tr></thead>
+                <thead class="bg-slate-50 border-b border-slate-200 text-xs text-slate-500 uppercase"><tr><th class="px-6 py-3">Nome</th><th class="px-6 py-3">Email</th><th class="px-6 py-3">Alunos Vinculados</th><th class="px-6 py-3 text-right">Ação</th></tr></thead>
                 <tbody class="divide-y divide-slate-100">
                     <?php foreach($coParents as $cp): ?>
                     <tr>
                         <td class="px-6 py-4 font-medium"><?= htmlspecialchars($cp['name']) ?></td>
                         <td class="px-6 py-4 text-slate-500"><?= htmlspecialchars($cp['email']) ?></td>
+                        <td class="px-6 py-4 text-slate-500 text-sm"><?= htmlspecialchars($cp['linked_students']) ?></td>
                         <td class="px-6 py-4 text-right"><span class="text-xs bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full">Ativo</span></td>
                     </tr>
                     <?php endforeach; ?>
@@ -114,7 +126,25 @@ require __DIR__ . '/../../includes/header.php';
                 <div><label class="block text-sm font-bold text-slate-700 mb-1">E-mail (Login)</label><input type="email" name="coparent_email" required class="w-full border rounded-lg px-4 py-2"></div>
                 <div><label class="block text-sm font-bold text-slate-700 mb-1">Telefone</label><input type="text" name="coparent_phone" required class="w-full border rounded-lg px-4 py-2"></div>
             </div>
-            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 w-full md:w-auto">Convidar e Vincular</button>
+            
+            <?php if(!empty($myStudentsList)): ?>
+            <div class="mt-6 border-t pt-4">
+                <label class="block text-sm font-bold text-slate-700 mb-3">Dar acesso a quais filhos?</label>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <?php foreach($myStudentsList as $s): ?>
+                    <label class="flex items-center gap-3 p-3 border rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                        <input type="checkbox" name="student_ids[]" value="<?= $s['id'] ?>" class="w-5 h-5 text-emerald-600 rounded border-slate-300 focus:ring-emerald-500">
+                        <img src="<?= $s['avatar_url'] ?>" class="w-8 h-8 rounded-full bg-white border border-slate-200">
+                        <span class="font-bold text-slate-700"><?= htmlspecialchars($s['name']) ?></span>
+                    </label>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+            <?php else: ?>
+                <div class="p-4 bg-yellow-50 text-yellow-800 rounded-lg text-sm mt-4">Você precisa cadastrar um aluno antes de adicionar um co-responsável.</div>
+            <?php endif; ?>
+
+            <button type="submit" class="bg-slate-800 text-white px-6 py-2 rounded-lg font-bold hover:bg-slate-900 w-full md:w-auto mt-4">Convidar e Vincular</button>
         </form>
     </div>
 </div>

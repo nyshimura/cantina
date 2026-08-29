@@ -625,14 +625,63 @@ require __DIR__ . '/../../includes/header.php';
     }
 
     // --- BOTÃO PRINCIPAL (OK) ---
-    function processPayment(e) { 
-        e.preventDefault(); 
+    async function processPayment(e) { 
+        if(e) e.preventDefault(); 
         const tag = document.getElementById('nfcInput').value.trim();
+        
+        if(tag && cart.length === 0) {
+            // Verifica se tem entrega de Reserva!
+            const status = document.getElementById('paymentStatus');
+            status.classList.remove('hidden');
+            status.innerHTML = '<i class="lucide-loader-2 animate-spin inline-block mr-2 w-3 h-3"></i> Buscando Reservas...';
+            status.className = 'mt-3 p-3 rounded-xl text-center text-xs font-bold bg-blue-50 text-blue-500 border border-blue-100';
+            
+            try {
+                const res = await fetch('../../api/pickup_pre_order.php', {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({ tagId: tag })
+                });
+                const data = await res.json();
+                
+                if (data.success && data.has_pre_order) {
+                    const overlay = document.getElementById('successOverlay');
+                    document.getElementById('successAmount').innerText = 'ENTREGUE';
+                    document.getElementById('successStudentName').innerHTML = data.student_name + '<br><span class="text-sm text-slate-500 font-medium">' + data.items + '</span>';
+                    overlay.classList.remove('hidden');
+                    overlay.classList.add('flex');
+                    
+                    setTimeout(() => {
+                        overlay.classList.add('hidden');
+                        overlay.classList.remove('flex');
+                        status.classList.add('hidden');
+                        document.getElementById('nfcInput').value = '';
+                        document.getElementById('nfcInput').focus();
+                    }, 4000);
+                } else if (data.success === false && data.has_pre_order === false) {
+                    showToast("Nenhuma reserva pendente de entrega para hoje.", "warning");
+                    status.classList.add('hidden');
+                    document.getElementById('nfcInput').value = '';
+                    document.getElementById('nfcInput').focus();
+                } else {
+                    showToast(data.message || "Erro ao buscar reservas", "error");
+                    status.classList.add('hidden');
+                    document.getElementById('nfcInput').value = '';
+                    document.getElementById('nfcInput').focus();
+                }
+            } catch(err) {
+                showToast("Erro de conexão.", "error");
+                status.classList.add('hidden');
+                document.getElementById('nfcInput').value = '';
+            }
+            return;
+        }
+
         if(!tag && cart.length > 0) {
             document.getElementById('nfcInput').focus();
             return;
         }
-        // Alterado: Chama initiate em vez de handle direto
+
         if(tag && cart.length > 0) initiatePaymentProcess({tagId: tag, paymentMethod: 'NFC'});
     }
 

@@ -16,8 +16,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             
             if(empty($tagId) || empty($alias)) throw new Exception("UID e Apelido são obrigatórios.");
 
-            $stmt = $pdo->prepare("INSERT INTO nfc_tags (tag_id, tag_alias, status, balance) VALUES (?, ?, 'SPARE', 0.00)");
-            $stmt->execute([$tagId, $alias]);
+            try {
+                $stmt = $pdo->prepare("INSERT INTO nfc_tags (tag_id, tag_alias, status, balance) VALUES (?, ?, 'SPARE', 0.00)");
+                $stmt->execute([$tagId, $alias]);
+            } catch (PDOException $e) {
+                if ($e->getCode() == 23000) { // Integridade: Duplicate entry
+                    throw new Exception("Esta tag ($tagId) já está cadastrada no sistema.");
+                }
+                throw $e;
+            }
         } 
         elseif ($action === 'edit_alias') {
             $stmt = $pdo->prepare("UPDATE nfc_tags SET tag_alias = ? WHERE tag_id = ?");
@@ -26,13 +33,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         elseif ($action === 'delete') {
             $tagId = $input['tag_id'];
             
-            // REGRA: Validação de saldo na TAG antes de deletar
-            $stmt = $pdo->prepare("SELECT balance FROM nfc_tags WHERE tag_id = ?");
+            // REGRA: Validação de saldo e status na TAG antes de deletar
+            $stmt = $pdo->prepare("SELECT balance, status FROM nfc_tags WHERE tag_id = ?");
             $stmt->execute([$tagId]);
-            $balance = $stmt->fetchColumn();
+            $tagInfo = $stmt->fetch();
 
-            if ($balance > 0) {
-                throw new Exception("Não é possível remover: Esta tag ainda possui R$ " . number_format($balance, 2, ',', '.') . " de saldo.");
+            if (!$tagInfo) {
+                throw new Exception("Tag não encontrada.");
+            }
+            if ($tagInfo['status'] === 'ACTIVE') {
+                throw new Exception("Não é possível remover: Esta tag está em uso por um aluno.");
+            }
+            if ($tagInfo['balance'] > 0) {
+                throw new Exception("Não é possível remover: Esta tag ainda possui R$ " . number_format($tagInfo['balance'], 2, ',', '.') . " de saldo.");
             }
             $pdo->prepare("DELETE FROM nfc_tags WHERE tag_id = ?")->execute([$tagId]);
         }
@@ -72,36 +85,11 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 require __DIR__ . '/../../includes/header.php';
 ?>
 
-<a href="../../views/logout.php" class="md:hidden fixed top-3 right-4 z-[60] bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-slate-800 transition-colors">
-    Sair
-</a>
+
 
 <div class="flex flex-col h-screen w-full overflow-hidden bg-slate-50">
     
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
-
-    <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-10 shrink-0">
-        <div class="flex items-center gap-2 p-3 whitespace-nowrap">
-            <?php 
-            function renderMobileLink($perm, $url, $label, $icon, $current) {
-                if (!checkMobilePerm($perm)) return;
-                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
-                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                echo "</a>";
-            }
-
-            renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
-            renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
-            renderMobileLink('canManageFinancial', 'financial.php', 'Financeiro', 'dollar-sign', $currentPage);
-            renderMobileLink('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $currentPage);
-            renderMobileLink('canManageParents', 'parents.php', 'Responsáveis', 'users', $currentPage);
-            renderMobileLink('canManageTags', 'tags.php', 'Tags NFC', 'rss', $currentPage);
-            renderMobileLink('canManageTeam', 'team.php', 'Equipe', 'shield-check', $currentPage);
-            renderMobileLink('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $currentPage);
-            ?>
-        </div>
-    </div>
 
     <div class="flex flex-1 overflow-hidden">
         

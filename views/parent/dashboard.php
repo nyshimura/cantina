@@ -56,16 +56,17 @@ try {
             die("Você não tem permissão para acessar os dados deste aluno.");
         }
 
-        // 4. Fetch History (COM FILTRO DE DATA)
+        // 4. Fetch History (COM FILTRO DE DATA - E PRIVACIDADE DE CO-RESPONSÁVEL)
         $stmtH = $pdo->prepare("
             SELECT timestamp, items_summary as display_desc, type, amount, status 
             FROM transactions 
             WHERE student_id = ? 
             AND status IN ('COMPLETED', 'REFUNDED', 'CANCELLED')
             AND MONTH(timestamp) = ? AND YEAR(timestamp) = ?
+            AND (type NOT IN ('DEPOSIT', 'RECHARGE') OR parent_id IS NULL OR parent_id = ?)
             ORDER BY timestamp DESC
         ");
-        $stmtH->execute([$selectedId, $filterMonth, $filterYear]);
+        $stmtH->execute([$selectedId, $filterMonth, $filterYear, $parentId]);
         $history = $stmtH->fetchAll();
 
         // 5. Weekly Graph Data
@@ -97,6 +98,9 @@ try {
         ");
         $stmtCo->execute([$selectedId]);
         $coParents = $stmtCo->fetchAll();
+
+        // 7. Fetch Classrooms
+        $classrooms = $pdo->query("SELECT id, name FROM classrooms ORDER BY name ASC")->fetchAll();
     }
 
     $dailyLimit = (float)$childData['daily_limit'];
@@ -113,38 +117,51 @@ require __DIR__ . '/../../includes/header.php';
 
 <style>
     /* Global Styles */
-    html, body { overflow-y: auto !important; height: auto !important; background-color: #f8fafc; }
+    html, body { 
+        background-color: #f8fafc; 
+        overflow-x: hidden;
+        height: 100%;
+    }
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
     ::-webkit-scrollbar-thumb { background: #10b981; border-radius: 10px; border: 2px solid #f1f5f9; }
     ::-webkit-scrollbar-thumb:hover { background: #059669; }
 
-    /* Modal Overlay */
+    /* Modal base styles */
     .modal-overlay {
-        background: rgba(15, 23, 42, 0.4);
-        backdrop-filter: blur(8px);
         display: none;
         position: fixed;
         inset: 0;
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(4px);
         z-index: 100;
-        align-items: center;
+        align-items: flex-start; /* Changed from center to allow scrolling from top */
         justify-content: center;
-        padding: 2vh;
-        overflow-y: auto;
+        padding: 5vh 1rem; /* Added padding to top/bottom */
+        overflow-y: auto; /* Allow scrolling on the overlay itself */
     }
-    .modal-overlay.active { display: flex; }
+    
+    .modal-overlay.active {
+        display: flex;
+    }
+    
+    .modal-content {
+        background: white;
+        border-radius: 2rem;
+        width: 100%;
+        max-width: 28rem;
+        padding: 2rem;
+        position: relative;
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        margin: auto; /* This helps center it vertically when it's smaller than the screen */
+        animation: modalIn 0.2s ease-out forwards;
+    }
+    @keyframes modalIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
     
     #modalAddCoParent { z-index: 110; }
     #modalDeleteCoParent { z-index: 120; }
 
-    /* Modal Content */
-    .modal-content { 
-        height: auto; max-height: 98vh; width: 100%; max-width: 450px; 
-        overflow: hidden; display: flex; flex-direction: column;
-        padding: clamp(1rem, 3vh, 2.5rem) !important;
-        animation: modalFadeIn 0.2s ease-out; 
-    }
-
+    /* Modal Content Specifics */
     .modal-content h2 { font-size: clamp(1.1rem, 2.8vh, 1.5rem) !important; margin-bottom: 2vh !important; }
     .modal-content .flex-col.items-center, .modal-content .flex.items-center.gap-3 { margin-bottom: 2vh !important; }
     .modal-content img { max-height: clamp(60px, 25vh, 240px) !important; width: auto; margin-bottom: 1.5vh !important; }
@@ -345,12 +362,22 @@ require __DIR__ . '/../../includes/header.php';
             <div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="pencil" class="w-4 h-4"></i></div>
             <h2 class="font-black text-slate-800 italic">Editar Dados do Aluno</h2>
         </div>
-        <div class="flex justify-center shrink-0 mb-4">
-            <img src="<?= $childData['avatar_url'] ?>" class="rounded-full border-4 border-slate-50 shadow-sm w-20 h-20">
-        </div>
+        
         <form onsubmit="handleFormSubmit(event, 'update_child.php', 'modalEditStudent')">
-            <input type="hidden" name="student_id" value="<?= $selectedId ?>">
+            <input type="hidden" name="student_id" id="editStudentId" value="<?= $selectedId ?>">
             
+            <div class="bg-slate-50 p-4 rounded-2xl flex items-center gap-4 border border-slate-100 mb-6 mt-4">
+                <img id="editAvatarPreview" src="<?= $childData['avatar_url'] ?>" class="w-16 h-16 rounded-full border-4 border-white shadow-md bg-white shrink-0">
+                <div class="flex-1">
+                    <label class="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">Mudar Avatar (Deslize no mapa)</label>
+                    <div id="editAvatarMap" class="relative w-full h-32 rounded-xl cursor-crosshair overflow-hidden shadow-inner touch-none" style="background: conic-gradient(from 180deg at 50% 50%, #ff0000, #ff8000, #ffff00, #00ff00, #00ffff, #0000ff, #8000ff, #ff00ff, #ff0000);">
+                        <div class="absolute inset-0" style="background: linear-gradient(to bottom, rgba(255,255,255,1), rgba(255,255,255,0) 50%, rgba(0,0,0,0) 50%, rgba(0,0,0,1));"></div>
+                        <div id="editAvatarPointer" class="absolute w-4 h-4 bg-white border-2 border-slate-800 rounded-full shadow-md pointer-events-none -translate-x-1/2 -translate-y-1/2" style="top: 50%; left: 50%;"></div>
+                    </div>
+                    <input type="hidden" name="avatar_seed" id="editAvatarSeed" value="">
+                </div>
+            </div>
+
             <div>
                 <label class="text-slate-400 uppercase ml-2 font-black">Nome</label>
                 <input type="text" name="name" value="<?= $childData['name'] ?>" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold text-slate-700">
@@ -368,9 +395,20 @@ require __DIR__ . '/../../includes/header.php';
                 </div>
             </div>
 
-            <div>
-                <label class="text-slate-400 uppercase ml-2 font-black">E-mail</label>
-                <input type="email" name="email" value="<?= $childData['email'] ?>" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold text-slate-700">
+            <div class="grid grid-cols-2 gap-4 mt-4">
+                <div>
+                    <label class="text-slate-400 uppercase ml-2 font-black">E-mail</label>
+                    <input type="email" name="email" value="<?= $childData['email'] ?>" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold text-slate-700">
+                </div>
+                <div>
+                    <label class="text-slate-400 uppercase ml-2 font-black">Turma</label>
+                    <select name="classroom_id" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl outline-none focus:border-emerald-500 font-bold text-slate-700 h-[50px] px-4">
+                        <option value="">Selecione uma Turma...</option>
+                        <?php foreach($classrooms as $c): ?>
+                            <option value="<?= $c['id'] ?>" <?= ($childData['classroom_id'] == $c['id'] || $childData['pending_classroom_id'] == $c['id']) ? 'selected' : '' ?>><?= htmlspecialchars($c['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
             </div>
 
             <div class="bg-red-50/50 p-4 rounded-2xl border border-red-100/50 mt-2">
@@ -440,7 +478,10 @@ require __DIR__ . '/../../includes/header.php';
                         <p class="text-xs text-slate-400 font-medium"><?= $cp['email'] ?></p>
                     </div>
                     <?php if ($isActive): ?>
-                        <button onclick="prepareDelete('<?= $cp['id'] ?>', '<?= $cp['name'] ?>')" class="text-slate-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        <div class="flex">
+                            <button onclick="openManageLinks('<?= $cp['id'] ?>', '<?= addslashes($cp['name']) ?>')" class="text-slate-300 hover:text-indigo-500 p-2 transition-colors" title="Gerenciar Acessos aos Filhos"><i data-lucide="settings-2" class="w-4 h-4"></i></button>
+                            <button onclick="prepareDelete('<?= $cp['id'] ?>', '<?= addslashes($cp['name']) ?>')" class="text-slate-300 hover:text-red-500 p-2"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
                     <?php else: ?>
                         <button onclick="reactivateParent('<?= $cp['id'] ?>')" class="text-slate-300 hover:text-emerald-500 p-2"><i data-lucide="refresh-cw" class="w-4 h-4"></i></button>
                     <?php endif; ?>
@@ -462,6 +503,7 @@ require __DIR__ . '/../../includes/header.php';
 
 <div id="modalAddCoParent" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative shadow-2xl max-w-sm"><button onclick="closeModal('modalAddCoParent')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="flex items-center gap-3 shrink-0 mb-[2vh]"><div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="user-plus" class="w-5 h-5"></i></div><h2 class="font-black text-slate-800 italic">Adicionar Responsável</h2></div><div class="bg-blue-50/50 p-4 rounded-2xl border border-blue-100 mb-[2vh]"><p class="text-[10px] text-blue-600 font-medium leading-relaxed">O novo responsável terá acesso total.</p></div><form onsubmit="handleFormSubmit(event, 'add_coparent.php', 'modalAddCoParent')"><input type="hidden" name="student_id" value="<?= $selectedId ?>"><div><label class="text-slate-400 uppercase ml-2 font-black">Nome Completo</label><input type="text" name="name" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"></div><div><label class="text-slate-400 uppercase ml-2 font-black">CPF</label><input type="text" name="cpf" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"></div><div><label class="text-slate-400 uppercase ml-2 font-black">E-mail</label><input type="email" name="email" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"></div><div><label class="text-slate-400 uppercase ml-2 font-black">Telefone</label><input type="text" name="phone" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"></div><div><label class="text-slate-400 uppercase ml-2 font-black">Senha</label><input type="password" name="password" required class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700" placeholder="••••••••"></div><button type="submit" class="submit-btn w-full bg-[#10b981] text-white font-black rounded-2xl shadow-xl hover:scale-[1.02] transition-all italic uppercase tracking-widest text-xs mt-[1vh]">Adicionar</button></form></div></div>
 <div id="modalDeleteCoParent" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative shadow-2xl max-w-sm text-center"><button onclick="closeModal('modalDeleteCoParent')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="w-14 h-14 bg-red-50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4"><i data-lucide="alert-triangle" class="w-6 h-6"></i></div><h2 class="font-black text-slate-800 italic text-xl mb-2">Remover Responsável?</h2><p class="text-slate-400 text-sm mb-6">Tem certeza que deseja remover o acesso de <span id="deleteName" class="font-bold text-slate-600"></span>?</p><form onsubmit="handleFormSubmit(event, 'toggle_coparent.php', 'modalDeleteCoParent')"><input type="hidden" name="coparent_id" id="deleteId"><input type="hidden" name="student_id" value="<?= $selectedId ?>"><input type="hidden" name="action" value="deactivate"><div class="flex items-center justify-center gap-2 mb-6 cursor-pointer" onclick="document.getElementById('checkDelete').click()"><input type="checkbox" id="checkDelete" required class="w-4 h-4 accent-red-500 rounded cursor-pointer"><span class="text-xs font-bold text-slate-500">Confirmar a desativação</span></div><div class="flex gap-3"><button type="button" onclick="closeModal('modalDeleteCoParent')" class="flex-1 py-3 font-black text-slate-400 hover:text-slate-600 italic">Cancelar</button><button type="submit" class="submit-btn flex-1 bg-red-500 text-white font-black rounded-2xl shadow-lg hover:bg-red-600 transition-all italic uppercase text-xs">Desativar</button></div></form></div></div>
+<div id="modalManageLinks" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative shadow-2xl max-w-sm"><button onclick="closeModal('modalManageLinks')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="flex items-center gap-3 shrink-0 mb-[2vh]"><div class="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><i data-lucide="settings-2" class="w-5 h-5"></i></div><h2 class="font-black text-slate-800 italic">Gerenciar Acessos</h2></div><p class="text-[11px] text-slate-400 mb-4 uppercase tracking-widest font-bold">Acessos de <span id="manageLinksName" class="text-slate-700"></span></p><form onsubmit="handleLinksSubmit(event)"><input type="hidden" id="manageLinksCoparentId"><div id="manageLinksContainer" class="space-y-2 mb-4 max-h-[40vh] overflow-y-auto pr-2"></div><button type="submit" id="btnManageLinks" class="submit-btn w-full bg-indigo-500 text-white font-black py-4 rounded-2xl shadow-xl hover:bg-indigo-600 transition-all italic uppercase tracking-widest text-xs">Salvar Acessos</button></form></div></div>
 <div id="modalWallet" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative max-w-sm shadow-2xl"><button onclick="closeModal('modalWallet')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="flex items-center gap-3 shrink-0"><div class="p-2 bg-emerald-50 text-emerald-600 rounded-xl"><i data-lucide="wallet" class="w-5 h-5"></i></div><h2 class="font-black text-slate-800 italic">Carteira</h2></div><?php $config = json_decode($childData['recharge_config'], true); ?><form onsubmit="handleFormSubmit(event, 'update_recharge.php', 'modalWallet')"><input type="hidden" name="student_id" value="<?= $selectedId ?>"><div class="bg-slate-50/50 p-4 rounded-2xl flex items-center justify-between border border-slate-100 mb-[1vh]"><span class="font-black text-slate-700 text-sm italic">Autorrecarga</span><label class="relative inline-flex items-center cursor-pointer"><input type="checkbox" name="can_self_charge" value="1" <?= $childData['can_self_charge'] ? 'checked' : '' ?> class="sr-only peer"><div class="w-11 h-6 bg-slate-200 rounded-full peer peer-checked:bg-emerald-500 after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-full"></div></label></div><div class="grid grid-cols-2 gap-4"><div><label class="text-slate-400 uppercase ml-2 block tracking-widest">Limite</label><input type="number" name="recharge_limit" value="<?= $config['limit'] ?? 100 ?>" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"></div><div><label class="text-slate-400 uppercase ml-2 block tracking-widest">Período</label><select name="recharge_period" class="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl font-bold text-slate-700"><option value="Diário" <?= ($config['period'] ?? '') == 'Diário' ? 'selected' : '' ?>>Diário</option><option value="Mensal" <?= ($config['period'] ?? '') == 'Mensal' ? 'selected' : '' ?>>Mensal</option></select></div></div><button type="submit" class="submit-btn w-full bg-[#10b981] text-white font-black px-8 py-3 rounded-xl shadow-lg hover:scale-[1.02] transition-all italic uppercase mt-2">Salvar</button></form></div></div>
 <div id="modalLimit" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative max-w-sm shadow-2xl text-center"><button onclick="closeModal('modalLimit')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><h2 class="font-black text-slate-800 italic">Limite Diário</h2><form onsubmit="handleFormSubmit(event, 'update_limit.php', 'modalLimit')"><input type="hidden" name="student_id" value="<?= $selectedId ?>"><div class="relative my-6 shrink-0"><span class="absolute left-6 top-1/2 -translate-y-1/2 font-black text-slate-300 text-2xl italic">R$</span><input type="number" name="daily_limit" step="0.05" value="<?= $childData['daily_limit'] ?>" class="w-full pl-16 pr-6 bg-slate-50 border-2 border-slate-100 rounded-3xl font-black text-4xl text-center"></div><button type="submit" class="submit-btn w-full bg-[#10b981] text-white font-black py-4 rounded-2xl shadow-lg italic">Salvar Limite</button></form></div></div>
 
@@ -504,7 +546,73 @@ require __DIR__ . '/../../includes/header.php';
         document.getElementById('deleteId').value = id;
         document.getElementById('deleteName').textContent = name;
         document.getElementById('checkDelete').checked = false;
-        openModal('modalDeleteCoParent', true);
+        openModal('modalDeleteCoParent');
+    }
+
+    async function openManageLinks(coparentId, coparentName) {
+        document.getElementById('manageLinksCoparentId').value = coparentId;
+        document.getElementById('manageLinksName').textContent = coparentName;
+        const container = document.getElementById('manageLinksContainer');
+        container.innerHTML = '<p class="text-xs text-slate-400 italic">Carregando...</p>';
+        openModal('modalManageLinks');
+
+        try {
+            const res = await fetch(`../../api/get_coparent_links.php?coparent_id=${coparentId}`);
+            const result = await res.json();
+            
+            if (result.success) {
+                container.innerHTML = '';
+                if(result.data.length === 0){
+                    container.innerHTML = '<p class="text-xs text-slate-500">Você não tem filhos cadastrados.</p>';
+                    return;
+                }
+                result.data.forEach(child => {
+                    const checked = child.is_linked ? 'checked' : '';
+                    container.innerHTML += `
+                        <label class="flex items-center gap-3 p-3 border border-slate-100 rounded-xl cursor-pointer hover:bg-slate-50 transition-colors">
+                            <input type="checkbox" name="child_links[]" value="${child.id}" ${checked} class="w-5 h-5 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                            <img src="${child.avatar_url || '../../assets/img/default-avatar.png'}" class="w-8 h-8 rounded-full border border-slate-200 object-cover bg-white">
+                            <span class="font-bold text-slate-700 text-sm">${child.name}</span>
+                        </label>
+                    `;
+                });
+            } else {
+                container.innerHTML = `<p class="text-xs text-red-500 italic">${result.message}</p>`;
+            }
+        } catch(e) {
+            container.innerHTML = '<p class="text-xs text-red-500 italic">Erro ao carregar</p>';
+        }
+    }
+
+    async function handleLinksSubmit(e) {
+        e.preventDefault();
+        const btn = document.getElementById('btnManageLinks');
+        btn.disabled = true;
+        btn.innerHTML = 'Salvando...';
+
+        const coparentId = document.getElementById('manageLinksCoparentId').value;
+        const checkboxes = document.querySelectorAll('input[name="child_links[]"]:checked');
+        const studentIds = Array.from(checkboxes).map(cb => cb.value);
+
+        try {
+            const res = await fetch('../../api/update_coparent_links.php', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ coparent_id: coparentId, student_ids: studentIds })
+            });
+            const data = await res.json();
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Erro: ' + data.message);
+                btn.disabled = false;
+                btn.innerHTML = 'Salvar Acessos';
+            }
+        } catch (err) {
+            alert('Erro ao salvar acessos');
+            btn.disabled = false;
+            btn.innerHTML = 'Salvar Acessos';
+        }
     }
 
     async function reactivateParent(id) {
@@ -713,6 +821,55 @@ require __DIR__ . '/../../includes/header.php';
         }
     }
     lucide.createIcons();
+
+// --- Lógica do Avatar Cartesiano ---
+
+const editMap = document.getElementById('editAvatarMap');
+const editPointer = document.getElementById('editAvatarPointer');
+const editPreview = document.getElementById('editAvatarPreview');
+const editSeedInput = document.getElementById('editAvatarSeed');
+
+let isDraggingAvatar = false;
+let avatarDebounceTimer;
+
+function updateEditAvatar(e) {
+    if(!editMap) return;
+    const rect = editMap.getBoundingClientRect();
+    let clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    let clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    
+    x = Math.max(0, Math.min(x, rect.width));
+    y = Math.max(0, Math.min(y, rect.height));
+    
+    editPointer.style.left = x + 'px';
+    editPointer.style.top = y + 'px';
+    
+    const r = Math.round((x / rect.width) * 255);
+    const b = Math.round((y / rect.height) * 255);
+    const g = Math.round(((rect.width - x) / rect.width) * 255);
+    
+    const hex = ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    editSeedInput.value = hex;
+
+    clearTimeout(avatarDebounceTimer);
+    avatarDebounceTimer = setTimeout(() => {
+        editPreview.src = `https://api.dicebear.com/9.x/adventurer/svg?seed=${hex}`;
+    }, 100);
+}
+
+if(editMap) {
+    editMap.addEventListener('mousedown', (e) => { isDraggingAvatar = true; updateEditAvatar(e); });
+    window.addEventListener('mousemove', (e) => { if(isDraggingAvatar) updateEditAvatar(e); });
+    window.addEventListener('mouseup', () => { isDraggingAvatar = false; });
+    
+    editMap.addEventListener('touchstart', (e) => { isDraggingAvatar = true; updateEditAvatar(e); }, {passive: false});
+    window.addEventListener('touchmove', (e) => { if(isDraggingAvatar) { updateEditAvatar(e); e.preventDefault(); } }, {passive: false});
+    window.addEventListener('touchend', () => { isDraggingAvatar = false; });
+}
+
 </script>
 </body>
 </html>

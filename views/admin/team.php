@@ -76,35 +76,9 @@ $currentPage = basename($_SERVER['PHP_SELF']);
 require __DIR__ . '/../../includes/header.php';
 ?>
 
-<a href="../../views/logout.php" class="md:hidden fixed top-3 right-4 z-[60] bg-slate-900 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-md hover:bg-slate-800 transition-colors">
-    Sair
-</a>
-
 <div class="flex flex-col h-screen w-full overflow-hidden bg-slate-50">
     
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
-
-    <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-10 shrink-0">
-        <div class="flex items-center gap-2 p-3 whitespace-nowrap">
-            <?php 
-            function renderMobileLink($perm, $url, $label, $icon, $current) {
-                if (!checkMobilePerm($perm)) return;
-                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100';
-                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                echo "</a>";
-            }
-            renderMobileLink('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $currentPage);
-            renderMobileLink('canManageSettings', 'settings.php', 'Configurações', 'settings', $currentPage);
-            renderMobileLink('canManageFinancial', 'financial.php', 'Financeiro', 'dollar-sign', $currentPage);
-            renderMobileLink('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $currentPage);
-            renderMobileLink('canManageParents', 'parents.php', 'Responsáveis', 'users', $currentPage);
-            renderMobileLink('canManageTags', 'tags.php', 'Tags NFC', 'rss', $currentPage);
-            renderMobileLink('canManageTeam', 'team.php', 'Equipe', 'shield-check', $currentPage);
-            renderMobileLink('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $currentPage);
-            ?>
-        </div>
-    </div>
 
     <div class="flex flex-1 overflow-hidden">
         
@@ -130,7 +104,7 @@ require __DIR__ . '/../../includes/header.php';
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <?php foreach($operators as $op): ?>
-                    <div onclick='openPermsModal(<?= json_encode($op) ?>)' class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 border-l-4 <?= $op['access_level'] === 'ADMIN' ? 'border-l-amber-500' : 'border-l-slate-400' ?> flex flex-col justify-between cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group relative">
+                    <div onclick='openPermsModal(<?= htmlspecialchars(json_encode($op), ENT_QUOTES, "UTF-8") ?>)' class="bg-white p-6 rounded-[2rem] shadow-sm border border-slate-200 border-l-4 <?= $op['access_level'] === 'ADMIN' ? 'border-l-amber-500' : 'border-l-slate-400' ?> flex flex-col justify-between cursor-pointer hover:shadow-xl hover:-translate-y-1 transition-all group relative">
                         
                         <div class="absolute top-4 right-4 z-10">
                             <button onclick="event.stopPropagation(); openPasswordModal(<?= $op['id'] ?>, '<?= htmlspecialchars($op['name'], ENT_QUOTES) ?>')" class="p-2 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-xl transition-all" title="Trocar Senha">
@@ -153,7 +127,7 @@ require __DIR__ . '/../../includes/header.php';
 
                         <?php if($op['id'] != $_SESSION['user_id']): ?>
                         <div class="mt-6 pt-4 border-t border-slate-50 flex justify-end" onclick="event.stopPropagation()">
-                            <button onclick='openSafetyModal("<?= $op['active'] ? 'deactivate' : 'activate' ?>", <?= json_encode($op) ?>)' class="<?= $op['active'] ? 'text-red-400 hover:text-red-600' : 'text-emerald-500 hover:text-emerald-700' ?> text-[10px] font-black uppercase tracking-widest transition-colors py-2 px-3 hover:bg-slate-50 rounded-lg">
+                            <button onclick='openSafetyModal("<?= $op['active'] ? 'deactivate' : 'activate' ?>", <?= htmlspecialchars(json_encode($op), ENT_QUOTES, "UTF-8") ?>)' class="<?= $op['active'] ? 'text-red-400 hover:text-red-600' : 'text-emerald-500 hover:text-emerald-700' ?> text-[10px] font-black uppercase tracking-widest transition-colors py-2 px-3 hover:bg-slate-50 rounded-lg">
                                 <?= $op['active'] ? 'Desativar Conta' : 'Reativar Conta' ?>
                             </button>
                         </div>
@@ -212,8 +186,8 @@ require __DIR__ . '/../../includes/header.php';
         </div>
     </div>
 
-    <div id="modalPerms" class="fixed inset-0 bg-slate-900/60 hidden items-center justify-center p-4 z-50 backdrop-blur-sm">
-        <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+    <div id="modalPerms" class="fixed inset-0 bg-slate-900/60 hidden items-start justify-center p-4 py-[5vh] z-50 backdrop-blur-sm overflow-y-auto">
+        <div class="bg-white rounded-[2.5rem] w-full max-w-md shadow-2xl p-8 animate-in fade-in zoom-in duration-200 m-auto">
             <h3 class="text-2xl font-bold text-slate-800 mb-1 tracking-tight">Permissões de Acesso</h3>
             <p id="permOpName" class="text-sm text-emerald-600 mb-8 font-black uppercase tracking-widest"></p>
             
@@ -221,12 +195,13 @@ require __DIR__ . '/../../includes/header.php';
                 <?php 
                 $labels = [
                     'canViewDashboard' => 'Visualizar Dashboard',
-                    'canManageSettings' => 'Configurações do Sistema',
+                    'canManageSettings' => 'Config., Horários e Turmas',
                     'canManageFinancial' => 'Aprovações Financeiras',
                     'canManageStudents' => 'Gestão de Alunos',
                     'canManageParents' => 'Gestão de Responsáveis',
                     'canManageTags' => 'Gestão de Tags NFC',
                     'canManageTeam' => 'Gestão da Equipe',
+                    'canManagePreOrders' => 'Lanches (Cozinha, Coleta, TV)',
                     'canViewLogs' => 'Logs de Auditoria'
                 ];
                 foreach($labels as $key => $label): ?>
@@ -309,7 +284,8 @@ require __DIR__ . '/../../includes/header.php';
         const form = document.getElementById('formPerms');
         
         form.querySelectorAll('input[type="checkbox"]').forEach(cb => {
-            cb.checked = perms[cb.name] === true;
+            const val = perms[cb.name];
+            cb.checked = (val === true || val === "true" || val === "1" || val === 1);
         });
 
         document.getElementById('modalPerms').classList.replace('hidden', 'flex');
