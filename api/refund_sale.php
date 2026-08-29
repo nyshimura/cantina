@@ -32,7 +32,7 @@ try {
     $pdo->beginTransaction();
 
     // 1. Busca a transação original
-    $stmt = $pdo->prepare("SELECT * FROM transactions WHERE id = ? AND type = 'PURCHASE' AND status = 'COMPLETED'");
+    $stmt = $pdo->prepare("SELECT * FROM transactions WHERE id = ? AND type = 'PURCHASE' AND status = 'COMPLETED' FOR UPDATE");
     $stmt->execute([$transactionId]);
     $transaction = $stmt->fetch();
 
@@ -48,24 +48,29 @@ try {
 
     // 2. Lógica de Estorno (Apenas se for NFC)
     if ($transaction['payment_method'] === 'NFC') {
-        if (empty($transaction['tag_id'])) {
-             if (empty($transaction['tag_id'])) {
-                throw new Exception("Erro: Venda NFC sem Tag registrada para devolução.");
-            }
-        }
-
-        $tagId = $transaction['tag_id'];
-
-        // Devolve o saldo
-        $stmtTag = $pdo->prepare("UPDATE nfc_tags SET balance = balance + ? WHERE tag_id = ?");
-        $stmtTag->execute([$refundAmount, $tagId]);
-
-        if ($stmtTag->rowCount() === 0) {
-            throw new Exception("Cartão NFC associado ($tagId) não encontrado ou inativo.");
-        }
+        $studentId = $transaction['student_id'];
         
-        $details .= " devolvido para a Tag $tagId.";
-        $impactText = "Saldo devolvido: R$ " . $formattedAmount;
+        if (empty($studentId)) {
+            throw new Exception("Erro: Venda sem Aluno associado não pode ser estornada via NFC.");
+        }
+
+        // Tenta encontrar a tag ATIVA atual do aluno com LOCK (FOR UPDATE)
+        $stmtActiveTag = $pdo->prepare("SELECT tag_id FROM nfc_tags WHERE current_student_id = ? AND status = 'ACTIVE' FOR UPDATE");
+        $stmtActiveTag->execute([$studentId]);
+        $activeTag = $stmtActiveTag->fetch();
+
+        if ($activeTag) {
+            $tagId = $activeTag['tag_id'];
+            // Devolve o saldo na tag ATIVA atual
+            $pdo->prepare("UPDATE nfc_tags SET balance = balance + ? WHERE tag_id = ?")->execute([$refundAmount, $tagId]);
+            $details .= " devolvido para a Tag ativa do aluno: $tagId.";
+            $impactText = "Saldo devolvido para Tag: R$ " . $formattedAmount;
+        } else {
+            // Se o aluno perdeu a tag e ainda não tem uma nova, vai para o Saldo Pendente
+            $pdo->prepare("UPDATE students SET pending_balance = pending_balance + ? WHERE id = ?")->execute([$refundAmount, $studentId]);
+            $details .= " guardado no Saldo Pendente (Aluno sem tag ativa).";
+            $impactText = "Saldo Pendente gerado: R$ " . $formattedAmount;
+        }
     } else {
         $details .= " (Venda em Dinheiro - Realizar devolução no caixa).";
         $impactText = "Devolucao em Especie: R$ " . $formattedAmount;

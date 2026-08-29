@@ -197,8 +197,9 @@ try {
     }
 
     // SALVA NO BANCO
-    $stmtTx = $pdo->prepare("INSERT INTO transactions (student_id, type, amount, status, items_summary, external_reference, payment_method, timestamp) VALUES (?, 'DEPOSIT', ?, 'PENDING', 'Recarga Pix', ?, 'PIX', NOW())");
-    $stmtTx->execute([$targetStudentId, $amount, $externalRef]);
+    $parentIdToSave = ($_SESSION['role'] === 'PARENT') ? $_SESSION['user_id'] : null;
+    $stmtTx = $pdo->prepare("INSERT INTO transactions (student_id, parent_id, type, amount, status, items_summary, external_reference, payment_method, timestamp) VALUES (?, ?, 'DEPOSIT', ?, 'PENDING', 'Recarga Pix', ?, 'PIX', NOW())");
+    $stmtTx->execute([$targetStudentId, $parentIdToSave, $amount, $externalRef]);
 
     echo json_encode([
         'success' => true, 

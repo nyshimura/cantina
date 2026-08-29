@@ -13,7 +13,9 @@ $name = trim($_POST['name'] ?? '');
 $cpf = trim($_POST['cpf'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
-$pin = $_POST['pin'] ?? ''; 
+$pin = $_POST['pin'] ?? '';
+$avatarSeed = $_POST['avatar_seed'] ?? ''; 
+$classroomId = $_POST['classroom_id'] ?? '';
 
 if (!$studentId || empty($name) || empty($cpf) || empty($email)) {
     echo json_encode(['success' => false, 'message' => 'Preencha os campos obrigatórios.']);
@@ -28,12 +30,15 @@ try {
     }
     // -------------------------------------------------------------------------------------------
 
-    // GERA O AVATAR AUTOMATICAMENTE BASEADO NO NOVO NOME
-    $avatarUrl = "https://api.dicebear.com/9.x/adventurer/svg?seed=" . urlencode($name);
-
     // Inicia a construção da query
-    $sql = "UPDATE students SET name = ?, cpf = ?, email = ?, avatar_url = ?";
-    $params = [$name, $cpf, $email, $avatarUrl];
+    $sql = "UPDATE students SET name = ?, cpf = ?, email = ?";
+    $params = [$name, $cpf, $email];
+
+    // Atualiza Avatar APENAS se o pai tiver interagido com o mapa
+    if (!empty($avatarSeed)) {
+        $sql .= ", avatar_url = ?";
+        $params[] = "https://api.dicebear.com/9.x/adventurer/svg?seed=" . urlencode($avatarSeed);
+    }
 
     // Lógica da Senha de Login (Site)
     if (!empty($password)) {
@@ -55,6 +60,19 @@ try {
 
         $sql .= ", purchase_pin = ?";
         $params[] = password_hash($pin, PASSWORD_DEFAULT);
+    }
+
+    if (!empty($classroomId)) {
+        // Se mudou a turma, coloca em pendente
+        // Vamos verificar a turma atual
+        $stmtC = $pdo->prepare("SELECT classroom_id, pending_classroom_id FROM students WHERE id = ?");
+        $stmtC->execute([$studentId]);
+        $currentC = $stmtC->fetch();
+        
+        if ($currentC && $currentC['classroom_id'] != $classroomId) {
+            $sql .= ", pending_classroom_id = ?";
+            $params[] = $classroomId;
+        }
     }
 
     // Finaliza a query

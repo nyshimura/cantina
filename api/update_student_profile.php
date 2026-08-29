@@ -14,6 +14,8 @@ $studentId = $_SESSION['user_id'];
 $email = trim($_POST['email'] ?? '');
 $password = $_POST['password'] ?? '';
 $pin = $_POST['pin'] ?? ''; // <--- NOVO: Captura o PIN
+$avatarSeed = $_POST['avatar_seed'] ?? '';
+$classroomId = $_POST['classroom_id'] ?? '';
 
 if (empty($email)) {
     echo json_encode(['success' => false, 'message' => 'O e-mail é obrigatório.']);
@@ -31,12 +33,14 @@ try {
         exit;
     }
 
-    // 2. Gera a URL do Avatar (Padrão DiceBear Adventurer)
-    $avatarUrl = 'https://api.dicebear.com/9.x/adventurer/svg?seed=' . urlencode($currentName);
-
     // 3. Monta a query de atualização
-    $sql = "UPDATE students SET email = ?, avatar_url = ?";
-    $params = [$email, $avatarUrl];
+    $sql = "UPDATE students SET email = ?";
+    $params = [$email];
+
+    if (!empty($avatarSeed)) {
+        $sql .= ", avatar_url = ?";
+        $params[] = "https://api.dicebear.com/9.x/adventurer/svg?seed=" . urlencode($avatarSeed);
+    }
 
     // --- LÓGICA DE SENHA (LOGIN) ---
     if (!empty($password)) {
@@ -59,6 +63,17 @@ try {
         
         $sql .= ", purchase_pin = ?";
         $params[] = password_hash($pin, PASSWORD_DEFAULT); // Salva como Hash seguro
+    }
+
+    if (!empty($classroomId)) {
+        $stmtC = $pdo->prepare("SELECT classroom_id, pending_classroom_id FROM students WHERE id = ?");
+        $stmtC->execute([$studentId]);
+        $currentC = $stmtC->fetch();
+        
+        if ($currentC && $currentC['classroom_id'] != $classroomId) {
+            $sql .= ", pending_classroom_id = ?";
+            $params[] = $classroomId;
+        }
     }
 
     $sql .= " WHERE id = ?";

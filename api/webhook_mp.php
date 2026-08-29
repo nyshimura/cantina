@@ -81,15 +81,18 @@ try {
                     $sqlTx = "UPDATE transactions SET status = 'COMPLETED' WHERE id = ?";
                     $pdo->prepare($sqlTx)->execute([$transaction['id']]);
 
-                    // B. Adiciona saldo na tabela NFC_TAGS
-                    $sqlTag = "UPDATE nfc_tags SET balance = balance + ? WHERE current_student_id = ?";
+                    // B. Adiciona saldo na tabela NFC_TAGS (Apenas Tag Ativa)
+                    $sqlTag = "UPDATE nfc_tags SET balance = balance + ? WHERE current_student_id = ? AND status = 'ACTIVE'";
                     $stmtTag = $pdo->prepare($sqlTag);
                     $stmtTag->execute([$transactionAmount, $transaction['student_id']]);
 
                     if ($stmtTag->rowCount() > 0) {
                         mpLog("SUCESSO: Saldo atualizado na nfc_tags para aluno " . $transaction['student_id']);
                     } else {
-                        mpLog("AVISO: Transação paga, mas aluno " . $transaction['student_id'] . " não tem tag vinculada na tabela nfc_tags.");
+                        // C. Fallback: Guarda no pending_balance se não tem tag ativa
+                        $sqlPending = "UPDATE students SET pending_balance = pending_balance + ? WHERE id = ?";
+                        $pdo->prepare($sqlPending)->execute([$transactionAmount, $transaction['student_id']]);
+                        mpLog("AVISO/FALLBACK: Saldo guardado em pending_balance. Aluno " . $transaction['student_id'] . " não tem tag ATIVA.");
                     }
 
                     $pdo->commit();

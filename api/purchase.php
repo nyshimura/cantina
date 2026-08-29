@@ -89,7 +89,7 @@ try {
             SELECT t.*, s.id as student_id, s.name as student_name, s.active as student_active, s.purchase_pin, s.daily_limit
             FROM nfc_tags t 
             LEFT JOIN students s ON t.current_student_id = s.id 
-            WHERE t.tag_id = ?
+            WHERE t.tag_id = ? FOR UPDATE
         ");
         $stmt->execute([$tagIdInput]);
         $tag = $stmt->fetch();
@@ -132,6 +132,20 @@ try {
         // Verifica Saldo
         if ($tag['balance'] < $total) {
             throw new Exception("Saldo insuficiente: R$ " . number_format($tag['balance'], 2, ',', '.'));
+        }
+
+        // Verifica Duplicação (Anti-Fraude/Duplo Clique) de 30 segundos
+        $stmtDup = $pdo->prepare("
+            SELECT id FROM transactions 
+            WHERE student_id = ? 
+            AND type = 'PURCHASE' 
+            AND amount = ? 
+            AND status = 'COMPLETED'
+            AND timestamp >= DATE_SUB(?, INTERVAL 30 SECOND)
+        ");
+        $stmtDup->execute([$tag['student_id'], -$total, $currentLocalTime]);
+        if ($stmtDup->fetch()) {
+            throw new Exception("Aguarde 30 segundos para realizar outra compra de mesmo valor (evita cobrança duplicada).");
         }
 
         // Debita

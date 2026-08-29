@@ -51,21 +51,31 @@ try {
         $transaction = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if ($transaction) {
-            if ($transaction['status'] !== 'PAID') {
-                // Atualiza para PAGO e salva o E2E ID para rastreio
-                $update = $pdo->prepare("UPDATE transactions SET status = 'PAID', updated_at = NOW(), external_reference = ? WHERE id = ?");
+            if ($transaction['status'] !== 'COMPLETED') {
+                // Atualiza para COMPLETED e salva o E2E ID para rastreio
+                $update = $pdo->prepare("UPDATE transactions SET status = 'COMPLETED', updated_at = NOW(), external_reference = ? WHERE id = ?");
                 // Nota: Em alguns casos, guardamos o E2E num campo separado, mas aqui atualizaremos a ref ou manteremos o txid.
                 // Sugestão: Mantenha o TXID na external_reference e salve o E2E num log ou campo 'metadata' se tiver.
                 // Abaixo, vou apenas confirmar o pagamento.
                 
-                $confirm = $pdo->prepare("UPDATE transactions SET status = 'PAID', updated_at = NOW() WHERE id = ?");
+                $confirm = $pdo->prepare("UPDATE transactions SET status = 'COMPLETED', updated_at = NOW() WHERE id = ?");
                 $confirm->execute([$transaction['id']]);
 
-                // Opcional: Atualizar saldo do aluno aqui, se seu sistema exigir saldo em conta
-                // $updateBalance = $pdo->prepare("UPDATE students SET balance = balance + ? WHERE id = ?");
-                // $updateBalance->execute([$valor, $transaction['student_id']]);
+                // Atualiza saldo na tabela NFC_TAGS (Apenas Tag Ativa)
+                $sqlTag = "UPDATE nfc_tags SET balance = balance + ? WHERE current_student_id = ? AND status = 'ACTIVE'";
+                $stmtTag = $pdo->prepare($sqlTag);
+                $stmtTag->execute([$valor, $transaction['student_id']]);
 
-                logWebhook("Sucesso: Transação #{$transaction['id']} atualizada para PAID.");
+                if ($stmtTag->rowCount() > 0) {
+                    logWebhook("Sucesso: Saldo atualizado na nfc_tags para aluno " . $transaction['student_id']);
+                } else {
+                    // Fallback: Guarda no pending_balance se não tem tag ativa
+                    $sqlPending = "UPDATE students SET pending_balance = pending_balance + ? WHERE id = ?";
+                    $pdo->prepare($sqlPending)->execute([$valor, $transaction['student_id']]);
+                    logWebhook("Aviso/Fallback: Saldo guardado em pending_balance. Aluno " . $transaction['student_id'] . " não tem tag ATIVA.");
+                }
+
+                logWebhook("Sucesso: Transação #{$transaction['id']} atualizada para COMPLETED.");
             } else {
                 logWebhook("Aviso: Transação #{$transaction['id']} já estava paga.");
             }
