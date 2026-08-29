@@ -64,5 +64,52 @@ $userRoleLabel = ($_SESSION['access_level'] === 'ADMIN') ? 'Admin' : 'Operador';
         <div class="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center font-black text-sm border-2 border-white shadow-sm ring-1 ring-emerald-100">
             <?= $userInitials ?>
         </div>
+        
+        <a href="../../views/logout.php" class="md:hidden w-10 h-10 bg-red-50 text-red-600 rounded-xl flex items-center justify-center hover:bg-red-100 transition-colors shrink-0 shadow-sm border border-red-100">
+            <i data-lucide="log-out" class="w-5 h-5"></i>
+        </a>
     </div>
 </header>
+
+<!-- Mobile Scroll Menu (Global) -->
+<?php
+if (!function_exists('checkMobilePermTop')) {
+    function checkMobilePermTop($key) {
+        $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
+        if ($userLevel === 'ADMIN') return true; 
+        $permsRaw = $_SESSION['permissions'] ?? '{}';
+        $perms = json_decode($permsRaw, true);
+        if (!is_array($perms)) { $perms = []; }
+        return isset($perms[$key]) && $perms[$key] === true;
+    }
+}
+?>
+<div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-20 shrink-0 shadow-sm relative">
+    <div class="flex items-center gap-2 p-3 whitespace-nowrap">
+        <?php 
+        if (!function_exists('renderMobileLinkTop')) {
+            function renderMobileLinkTop($perm, $url, $label, $icon, $current) {
+                if (!checkMobilePermTop($perm)) return;
+                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100';
+                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
+                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
+                echo "</a>";
+            }
+        }
+        $cPage = basename($_SERVER['PHP_SELF']);
+        
+        renderMobileLinkTop('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $cPage);
+        renderMobileLinkTop('canManageSettings', 'settings.php', 'Config.', 'settings', $cPage);
+        renderMobileLinkTop('canManageFinancial', 'financial.php', 'Financ.', 'dollar-sign', $cPage);
+        renderMobileLinkTop('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $cPage);
+        renderMobileLinkTop('canManageParents', 'parents.php', 'Responsáveis', 'users', $cPage);
+        renderMobileLinkTop('canManageSettings', 'schedules.php', 'Turmas', 'clock', $cPage);
+        renderMobileLinkTop('canManagePreOrders', 'kitchen_dashboard.php', 'Cozinha', 'chef-hat', $cPage);
+        renderMobileLinkTop('canManagePreOrders', 'room_orders.php', 'Coleta', 'tablet-smartphone', $cPage);
+        renderMobileLinkTop('canManagePreOrders', 'dispatch.php', 'TV', 'monitor-speaker', $cPage);
+        renderMobileLinkTop('canManageTags', 'tags.php', 'Tags NFC', 'rss', $cPage);
+        renderMobileLinkTop('canManageTeam', 'team.php', 'Equipe', 'shield-check', $cPage);
+        renderMobileLinkTop('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $cPage);
+        ?>
+    </div>
+</div>

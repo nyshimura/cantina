@@ -65,6 +65,28 @@ $inactiveStyle = "text-slate-600 hover:bg-slate-50 font-medium";
         </a>
         <?php endif; ?>
 
+        <?php if(hasPerm('canManageSettings')): ?>
+        <a href="schedules.php" class="flex items-center gap-3 px-4 py-4 rounded-xl transition-all <?= $currentPage == 'schedules.php' ? $activeStyle : $inactiveStyle ?>">
+            <i data-lucide="clock" class="w-5 h-5"></i> 
+            <span class="text-sm">Horários e Turmas</span>
+        </a>
+        <?php endif; ?>
+
+        <?php if(hasPerm('canManagePreOrders')): ?>
+        <a href="kitchen_dashboard.php" class="flex items-center gap-3 px-4 py-4 rounded-xl transition-all <?= $currentPage == 'kitchen_dashboard.php' ? $activeStyle : $inactiveStyle ?>">
+            <i data-lucide="chef-hat" class="w-5 h-5"></i> 
+            <span class="text-sm">Cozinha (Preparo)</span>
+        </a>
+        <a href="room_orders.php" class="flex items-center gap-3 px-4 py-4 rounded-xl transition-all <?= $currentPage == 'room_orders.php' ? $activeStyle : $inactiveStyle ?>">
+            <i data-lucide="tablet-smartphone" class="w-5 h-5"></i> 
+            <span class="text-sm">Coleta na Sala</span>
+        </a>
+        <a href="dispatch.php" class="flex items-center gap-3 px-4 py-4 rounded-xl transition-all <?= $currentPage == 'dispatch.php' ? $activeStyle : $inactiveStyle ?>">
+            <i data-lucide="monitor-speaker" class="w-5 h-5"></i> 
+            <span class="text-sm">Painel de Entrega (TV)</span>
+        </a>
+        <?php endif; ?>
+
         <?php if(hasPerm('canManageTags')): ?>
         <a href="tags.php" class="flex items-center gap-3 px-4 py-4 rounded-xl transition-all <?= $currentPage == 'tags.php' ? $activeStyle : $inactiveStyle ?>">
             <i data-lucide="rss" class="w-5 h-5"></i> 
