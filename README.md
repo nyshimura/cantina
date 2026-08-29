@@ -46,6 +46,9 @@ Siga os passos abaixo para rodar o projeto em seu ambiente local.
 ```bash
 git clone https://github.com/nyshimura/cantina.git
 cd cantina
+
+Login: admin@admin.com
+Senha: admin123
 ```
 
 ### 2. Importar a Base de dados
