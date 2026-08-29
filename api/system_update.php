@@ -182,8 +182,6 @@ function recursiveCopy($src, $dst, &$resp) {
             
             // --- PROTEÇÃO CONTRA SOBRESCRITA ---
             if (strpos($normalizedDst, '/config/db.php') !== false) continue;
-            if (strpos($normalizedDst, '/includes/auth.php') !== false) continue; 
-            if (strpos($normalizedDst, '/includes/sidebar.php') !== false) continue; 
             if (strpos($normalizedDst, '/certs/') !== false) continue;
             if (strpos($normalizedDst, '/uploads/') !== false) continue;
             if (strpos($normalizedDst, '/install/') !== false) continue;
