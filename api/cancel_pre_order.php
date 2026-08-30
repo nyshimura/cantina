@@ -66,12 +66,12 @@ try {
     if ($order['payment_status'] === 'PAID') {
         $amount = $order['total_amount'];
         
-        // Update balance
-        $stmtBalance = $pdo->prepare("UPDATE students SET balance = balance + ? WHERE id = ?");
+        // Update balance on the NFC tag
+        $stmtBalance = $pdo->prepare("UPDATE nfc_tags SET balance = balance + ? WHERE current_student_id = ?");
         $stmtBalance->execute([$amount, $student_id]);
         
-        // Mark the purchase transaction as REFUNDED if it exists (for simplicity, we create a REFUND transaction)
-        $stmtRefund = $pdo->prepare("INSERT INTO transactions (student_id, type, amount, status, display_desc) VALUES (?, 'REFUND', ?, 'COMPLETED', 'Estorno de Lanche')");
+        // Registrar a devolução no extrato
+        $stmtRefund = $pdo->prepare("INSERT INTO transactions (student_id, type, amount, status, items_summary, description) VALUES (?, 'DEPOSIT', ?, 'COMPLETED', 'Estorno de Reserva', 'Reembolso por cancelamento')");
         $stmtRefund->execute([$student_id, $amount]);
     }
 

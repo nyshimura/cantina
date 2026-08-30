@@ -28,9 +28,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $stmt->execute([$key, $value, $value]);
     }
     
-    // 3. Checkboxes (Cash / Sandbox / Security PIN)
+    // 3. Checkboxes (Cash / Sandbox / Security PIN / Recarga App)
     // ATUALIZADO: Adicionado 'security_enable_pin' na lista para salvar 0 se desmarcado
-    $checkboxes = ['enable_cash_payment', 'mp_sandbox_mode', 'security_enable_pin'];
+    $checkboxes = ['enable_cash_payment', 'mp_sandbox_mode', 'security_enable_pin', 'allow_student_self_recharge'];
     foreach ($checkboxes as $chk) {
         if (!isset($_POST[$chk])) {
             $pdo->prepare("INSERT INTO system_settings (setting_key, setting_value) VALUES (?, '0') ON DUPLICATE KEY UPDATE setting_value = '0'")->execute([$chk]);
@@ -57,6 +57,7 @@ $activeProvider = $settings['payment_provider'] ?? 'MANUAL_PIX';
 // NOVO: Defaults de Segurança
 $enablePin = $settings['security_enable_pin'] ?? '0';
 $minPinAmount = $settings['security_pin_min_amount'] ?? '0.00';
+$allowSelfRecharge = $settings['allow_student_self_recharge'] ?? '1';
 
 // Permissões
 $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
@@ -173,6 +174,30 @@ require __DIR__ . '/../../includes/header.php';
                                     </div>
                                     <p class="text-[10px] text-slate-500 mt-1">Abaixo deste valor, a senha não será solicitada (Agilidade).</p>
                                 </div>
+                            </div>
+                        </div>
+                    </section>
+                    
+                    <section class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden ring-1 ring-blue-50">
+                        <div class="px-6 py-4 bg-blue-50/50 border-b border-blue-100 flex items-center gap-2">
+                            <i data-lucide="smartphone" class="w-4 h-4 text-blue-500"></i>
+                            <h2 class="text-sm font-bold text-blue-700 uppercase tracking-wide">App do Aluno</h2>
+                        </div>
+                        <div class="p-6">
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center gap-4">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center">
+                                        <i data-lucide="wallet" class="w-5 h-5"></i>
+                                    </div>
+                                    <div>
+                                        <h3 class="font-bold text-slate-800">Permitir Recarga via App</h3>
+                                        <p class="text-xs text-slate-500">Se ativo, alunos com permissão e TAG vinculada poderão gerar QR Code de recarga.</p>
+                                    </div>
+                                </div>
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" name="allow_student_self_recharge" value="1" <?= $allowSelfRecharge == '1' ? 'checked' : '' ?> class="sr-only peer">
+                                    <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-500"></div>
+                                </label>
                             </div>
                         </div>
                     </section>

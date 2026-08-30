@@ -23,6 +23,23 @@ try {
     // Fetch School Name
     $schoolName = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'school_name'")->fetchColumn() ?: 'Cantina Escolar';
 
+    // Permissão Global de Recarga
+    $allowSelfRecharge = $pdo->query("SELECT setting_value FROM system_settings WHERE setting_key = 'allow_student_self_recharge'")->fetchColumn();
+    $allowSelfRecharge = ($allowSelfRecharge !== false) ? $allowSelfRecharge : '1';
+
+    $canRecharge = false;
+    $rechargeBlockReason = '';
+    
+    if (!$student['can_self_charge']) {
+        $rechargeBlockReason = 'Sua conta não tem permissão para realizar recargas pelo app. Procure a cantina.';
+    } elseif (empty($student['nfc_id'])) {
+        $rechargeBlockReason = 'Você precisa de uma TAG NFC (pulseira/cartão) ativa e vinculada à sua conta para recarregar o saldo.';
+    } elseif ($allowSelfRecharge != '1') {
+        $rechargeBlockReason = 'As recargas via aplicativo estão temporariamente suspensas pela escola.';
+    } else {
+        $canRecharge = true;
+    }
+
     // --- LÓGICA DE LIMITE DE RECARGA CORRIGIDA ---
     $rechargeConfig = json_decode($student['recharge_config'] ?? '[]', true);
     $limitVal = floatval($rechargeConfig['limit'] ?? 0);
@@ -185,10 +202,10 @@ require __DIR__ . '/../../includes/header.php';
             </div>
 
             <div class="grid grid-cols-2 gap-4">
-                <?php if ($student['can_self_charge']): ?>
+                <?php if ($canRecharge): ?>
                     <button onclick="openModal('modalRecharge')" class="bg-emerald-50 text-emerald-600 border border-emerald-100 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center gap-2 hover:bg-emerald-100 transition-all shadow-sm active:scale-95"><i data-lucide="plus-circle" class="w-5 h-5"></i> Recarregar</button>
                 <?php else: ?>
-                    <button disabled class="bg-slate-50 text-slate-300 border border-slate-100 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center gap-2 cursor-not-allowed opacity-75"><i data-lucide="lock" class="w-5 h-5"></i> Recarregar</button>
+                    <button onclick="showAlert('<?= addslashes($rechargeBlockReason) ?>', 'info')" class="bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center gap-2 hover:bg-slate-100 transition-all shadow-sm active:scale-95"><i data-lucide="lock" class="w-5 h-5"></i> Recarregar</button>
                 <?php endif; ?>
                 
                 <div class="bg-white border border-slate-100 py-4 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-sm">
@@ -429,7 +446,7 @@ require __DIR__ . '/../../includes/header.php';
     </div>
 </div>
 
-<?php if($student['can_self_charge']): ?>
+<?php if($canRecharge): ?>
 <div id="modalRecharge" class="modal-overlay">
     <div class="modal-content relative text-center">
         <button onclick="closeModal('modalRecharge')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button>
