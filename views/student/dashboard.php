@@ -31,7 +31,7 @@ try {
     $rechargeBlockReason = '';
     
     if (!$student['can_self_charge']) {
-        $rechargeBlockReason = 'Sua conta não tem permissão para realizar recargas pelo app. Procure a cantina.';
+        $rechargeBlockReason = 'Seu responsável ainda não autorizou recargas via app. Peça para ele habilitar esta opção.';
     } elseif (empty($student['nfc_id'])) {
         $rechargeBlockReason = 'Você precisa de uma TAG NFC (pulseira/cartão) ativa e vinculada à sua conta para recarregar o saldo.';
     } elseif ($allowSelfRecharge != '1') {

@@ -205,7 +205,12 @@ require __DIR__ . '/../../includes/header.php';
         <form onsubmit="event.preventDefault(); handleTagAction('add', {tag_id: document.getElementById('newTagId').value, tag_alias: document.getElementById('newTagAlias').value}, this.querySelector('button'))" class="space-y-4">
             <div>
                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">UID da Tag</label>
-                <input type="text" id="newTagId" required placeholder="Ex: 04:A1:B2:C3" class="w-full px-5 py-4 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 font-mono uppercase transition-all">
+                <div class="relative">
+                    <input type="text" id="newTagId" required placeholder="Ex: 04A1B2C3" class="w-full px-5 py-4 pr-14 rounded-2xl border border-slate-200 outline-none focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 font-mono uppercase transition-all" oninput="this.value = this.value.replace(/:/g, '')">
+                    <button type="button" onclick="startNfcScan()" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-slate-100 text-slate-500 hover:bg-emerald-100 hover:text-emerald-600 rounded-xl transition-colors" title="Ler NFC">
+                        <i data-lucide="radio" class="w-5 h-5"></i>
+                    </button>
+                </div>
             </div>
             <div>
                 <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 ml-1">Apelido de Identificação</label>
@@ -247,6 +252,42 @@ require __DIR__ . '/../../includes/header.php';
 </div>
 
 <script>
+    async function startNfcScan() {
+        if (!('NDEFReader' in window)) {
+            alert('Leitura NFC não é suportada neste dispositivo/navegador. Digite manualmente.');
+            return;
+        }
+        try {
+            const ndef = new NDEFReader();
+            await ndef.scan();
+            const btn = document.querySelector('button[title="Ler NFC"]');
+            const oldHtml = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader-2" class="w-5 h-5 animate-spin"></i>';
+            btn.classList.add('bg-emerald-500', 'text-white');
+            lucide.createIcons();
+            
+            ndef.addEventListener("reading", ({ serialNumber }) => {
+                const uid = serialNumber.replace(/:/g, '').toUpperCase();
+                document.getElementById('newTagId').value = uid;
+                
+                btn.innerHTML = oldHtml;
+                btn.classList.remove('bg-emerald-500', 'text-white');
+                lucide.createIcons();
+                if(navigator.vibrate) navigator.vibrate(200);
+            });
+            
+            ndef.addEventListener("readingerror", () => {
+                alert("Erro ao ler NFC. Aproxime novamente.");
+                btn.innerHTML = oldHtml;
+                btn.classList.remove('bg-emerald-500', 'text-white');
+                lucide.createIcons();
+            });
+            
+        } catch (error) {
+            alert('Erro ao iniciar NFC: ' + error.message);
+        }
+    }
+
     lucide.createIcons();
     function closeModals() { document.querySelectorAll('.fixed').forEach(m => m.classList.replace('flex', 'hidden')); }
 

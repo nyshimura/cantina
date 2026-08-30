@@ -247,7 +247,14 @@ function getMigrations() {
         // Self-Recharge Logic (Auto-Recarga)
         ['type'=>'col', 't'=>'students', 'c'=>'can_self_charge', 'sql'=>"ALTER TABLE students ADD COLUMN can_self_charge TINYINT(1) DEFAULT 0"],
         ['type'=>'col', 't'=>'students', 'c'=>'recharge_config', 'sql'=>"ALTER TABLE students ADD COLUMN recharge_config LONGTEXT DEFAULT NULL"],
-        ['type'=>'col', 't'=>'system_settings', 'c'=>'allow_student_self_recharge', 'sql'=>"INSERT INTO system_settings (setting_key, setting_value) VALUES ('allow_student_self_recharge', '1') ON DUPLICATE KEY UPDATE setting_key=setting_key"]
+        ['type'=>'col', 't'=>'system_settings', 'c'=>'allow_student_self_recharge', 'sql'=>"INSERT INTO system_settings (setting_key, setting_value) VALUES ('allow_student_self_recharge', '1') ON DUPLICATE KEY UPDATE setting_key=setting_key"],
+        
+        // NFC e Melhorias em Transações
+        ['type'=>'tbl', 't'=>'nfc_tags', 'sql'=>"CREATE TABLE nfc_tags (tag_id varchar(50) NOT NULL, tag_alias varchar(100) DEFAULT NULL, status enum('ACTIVE','SPARE') DEFAULT 'SPARE', current_student_id int(11) DEFAULT NULL, parent_owner_id int(11) DEFAULT NULL, last_student_name varchar(255) DEFAULT NULL, balance decimal(10,2) DEFAULT 0.00, PRIMARY KEY (tag_id), KEY current_student_id (current_student_id), KEY parent_owner_id (parent_owner_id), CONSTRAINT nfc_tags_ibfk_1 FOREIGN KEY (current_student_id) REFERENCES students (id) ON DELETE SET NULL, CONSTRAINT nfc_tags_ibfk_2 FOREIGN KEY (parent_owner_id) REFERENCES parents (id) ON DELETE CASCADE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"],
+        ['type'=>'col', 't'=>'transactions', 'c'=>'items_summary', 'sql'=>"ALTER TABLE transactions ADD COLUMN items_summary text DEFAULT NULL"],
+        ['type'=>'col', 't'=>'transactions', 'c'=>'tag_id', 'sql'=>"ALTER TABLE transactions ADD COLUMN tag_id varchar(50) DEFAULT NULL"],
+        ['type'=>'col', 't'=>'transactions', 'c'=>'payment_method', 'sql'=>"ALTER TABLE transactions ADD COLUMN payment_method varchar(20) DEFAULT 'NFC'"],
+        ['type'=>'col', 't'=>'transactions', 'c'=>'external_reference', 'sql'=>"ALTER TABLE transactions ADD COLUMN external_reference varchar(255) DEFAULT NULL"]
     ];
 }
 
