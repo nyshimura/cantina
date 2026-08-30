@@ -73,6 +73,17 @@ try {
     }
     
     $remainingLimit = max(0, $limitVal - $currentUsage);
+    
+    // --- LÓGICA DE LIMITE DIÁRIO (GASTOS) ---
+    $dailySpendingLimit = floatval($student['daily_limit'] ?? 0);
+    $todaySpent = 0;
+    $dailyLimitPct = 0;
+    if ($dailySpendingLimit > 0) {
+        $stmtSpent = $pdo->prepare("SELECT SUM(amount) FROM transactions WHERE student_id = ? AND type = 'PURCHASE' AND status = 'COMPLETED' AND DATE(timestamp) = CURRENT_DATE()");
+        $stmtSpent->execute([$studentId]);
+        $todaySpent = floatval($stmtSpent->fetchColumn() ?: 0);
+        $dailyLimitPct = min(100, ($todaySpent / $dailySpendingLimit) * 100);
+    }
     // ---------------------------------------------------
 
     // 2. Histórico
@@ -114,6 +125,19 @@ require __DIR__ . '/../../includes/header.php';
 ?>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script>
+    function confirmBlockTag() {
+        if (confirm("ATENÇÃO: Tem certeza que perdeu sua pulseira?\nEla será bloqueada na mesma hora e ninguém poderá comprar lanches com ela até a escola entregar uma nova.")) {
+            fetch('../../api/block_tag.php', { method: 'POST' })
+            .then(res => res.json())
+            .then(data => {
+                showAlert(data.message, data.success ? 'success' : 'error');
+                if(data.success) setTimeout(() => location.reload(), 3000);
+            })
+            .catch(err => showAlert("Erro de conexão.", "error"));
+        }
+    }
+</script>
 
 <style>
     html, body { 
@@ -208,13 +232,25 @@ require __DIR__ . '/../../includes/header.php';
                     <button onclick="showAlert('<?= addslashes($rechargeBlockReason) ?>', 'info')" class="bg-slate-50 text-slate-400 border border-slate-200 py-4 rounded-2xl font-black text-xs uppercase tracking-widest flex flex-col items-center gap-2 hover:bg-slate-100 transition-all shadow-sm active:scale-95"><i data-lucide="lock" class="w-5 h-5"></i> Recarregar</button>
                 <?php endif; ?>
                 
-                <div class="bg-white border border-slate-100 py-4 rounded-2xl flex flex-col items-center justify-center gap-1 shadow-sm">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Limite <?= ucfirst($limitPeriod) ?></span>
-                    <span class="text-lg font-black text-slate-700">R$ <?= number_format($limitVal, 2, ',', '.') ?></span>
+                <div class="bg-white border border-slate-100 p-4 rounded-2xl flex flex-col justify-center gap-2 shadow-sm relative overflow-hidden">
+                    <div class="flex justify-between items-end mb-1">
+                        <span class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Gasto Hoje</span>
+                        <?php if ($dailySpendingLimit > 0): ?>
+                            <span class="text-xs font-black text-slate-700">R$ <?= number_format($todaySpent, 2, ',', '.') ?> <span class="text-[9px] text-slate-400 font-normal">/ R$ <?= number_format($dailySpendingLimit, 2, ',', '.') ?></span></span>
+                        <?php else: ?>
+                            <span class="text-xs font-black text-slate-400">Sem limite</span>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($dailySpendingLimit > 0): ?>
+                        <div class="w-full bg-slate-100 rounded-full h-2">
+                            <div class="h-2 rounded-full <?= $dailyLimitPct >= 100 ? 'bg-red-500' : ($dailyLimitPct > 75 ? 'bg-amber-400' : 'bg-emerald-400') ?>" style="width: <?= $dailyLimitPct ?>%"></div>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
             
-            <a href="../logout.php" class="text-center text-xs font-bold text-red-400 hover:text-red-500 mt-2 flex items-center justify-center gap-2 py-2"><i data-lucide="log-out" class="w-3 h-3"></i> Sair da conta</a>
+            <button onclick="confirmBlockTag()" class="text-center text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 transition-colors border border-red-100 rounded-xl mt-2 flex items-center justify-center gap-2 py-4 w-full shadow-sm active:scale-95"><i data-lucide="shield-alert" class="w-4 h-4"></i> Perdi minha Pulseira (Bloquear NFC)</button>
+            <a href="../logout.php" class="text-center text-xs font-bold text-slate-400 hover:text-slate-500 mt-2 flex items-center justify-center gap-2 py-2"><i data-lucide="log-out" class="w-3 h-3"></i> Sair da conta</a>
         </div>
 
         <div class="lg:col-span-8 flex flex-col gap-8">

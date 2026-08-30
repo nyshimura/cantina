@@ -53,6 +53,7 @@ require __DIR__ . '/../../includes/header.php';
 
         <div class="hidden md:flex bg-slate-100 p-1 rounded-xl items-center gap-1">
             <a href="pos.php" class="px-4 py-2 rounded-lg text-sm font-bold bg-white text-emerald-600 shadow-sm transition-all">PDV</a>
+            <button onclick="showShiftSummary()" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-all flex items-center gap-1"><i data-lucide="calculator" class="w-4 h-4"></i> Resumo</button>
             <a href="history.php" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-white/50 transition-all">Histórico</a>
             <a href="products.php" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-white/50 transition-all">Catálogo</a>
             <a href="dashboard.php" class="px-4 py-2 rounded-lg text-sm font-bold text-slate-500 hover:text-slate-700 hover:bg-white/50 transition-all">Gestão</a>
@@ -743,4 +744,52 @@ require __DIR__ . '/../../includes/header.php';
     
     document.getElementById('nfcInput').addEventListener('keypress', function (e) { if (e.key === 'Enter') processPayment(e); });
     document.getElementById('cartPanel').addEventListener('click', function(e) { if(e.target === this && window.innerWidth < 768) toggleMobileCart(); });
+
+    function showShiftSummary() {
+        fetch('../../api/shift_summary.php')
+        .then(res => res.json())
+        .then(data => {
+            if(data.success) {
+                let m = document.getElementById('modalShiftSummary');
+                if(!m) {
+                    m = document.createElement('div');
+                    m.id = 'modalShiftSummary';
+                    m.className = 'fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] hidden items-center justify-center p-4';
+                    m.innerHTML = `
+                        <div class="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl relative">
+                            <button onclick="document.getElementById('modalShiftSummary').classList.replace('flex', 'hidden')" class="absolute top-4 right-4 p-2 bg-slate-100 text-slate-400 hover:text-slate-600 rounded-full"><i data-lucide="x" class="w-4 h-4"></i></button>
+                            <h3 class="text-xl font-black text-slate-800 mb-6 flex items-center gap-2"><i data-lucide="calculator" class="w-6 h-6 text-emerald-500"></i> Resumo de Hoje</h3>
+                            
+                            <div class="space-y-3">
+                                <div class="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex justify-between items-center">
+                                    <span class="text-slate-500 font-bold text-xs uppercase flex items-center gap-2"><i data-lucide="credit-card" class="w-4 h-4 text-indigo-500"></i> Pulseira NFC</span>
+                                    <span class="text-lg font-black text-slate-800" id="summNfc">R$ 0,00</span>
+                                </div>
+                                <div class="bg-emerald-50 p-4 rounded-2xl border border-emerald-100 flex justify-between items-center">
+                                    <span class="text-emerald-600 font-bold text-xs uppercase flex items-center gap-2"><i data-lucide="banknote" class="w-4 h-4"></i> Dinheiro Vivo</span>
+                                    <span class="text-lg font-black text-emerald-700" id="summCash">R$ 0,00</span>
+                                </div>
+                                <div class="bg-slate-800 p-4 rounded-2xl flex justify-between items-center mt-4 shadow-lg shadow-slate-200">
+                                    <span class="text-slate-300 font-bold text-xs uppercase">Total Faturado</span>
+                                    <span class="text-xl font-black text-white" id="summTotal">R$ 0,00</span>
+                                </div>
+                            </div>
+                            <button onclick="document.getElementById('modalShiftSummary').classList.replace('flex', 'hidden')" class="w-full mt-6 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl transition-colors">Fechar Resumo</button>
+                        </div>
+                    `;
+                    document.body.appendChild(m);
+                    lucide.createIcons();
+                }
+                
+                document.getElementById('summNfc').innerText = 'R$ ' + data.data.nfc.toFixed(2).replace('.', ',');
+                document.getElementById('summCash').innerText = 'R$ ' + data.data.cash.toFixed(2).replace('.', ',');
+                document.getElementById('summTotal').innerText = 'R$ ' + data.data.total.toFixed(2).replace('.', ',');
+                
+                m.classList.replace('hidden', 'flex');
+            } else {
+                showToast(data.message, 'error');
+            }
+        })
+        .catch(err => showToast('Erro de conexão.', 'error'));
+    }
 </script>
