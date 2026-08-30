@@ -1,7 +1,12 @@
 <?php
 // api/block_tag.php
 require_once __DIR__ . '/../includes/auth.php';
-requireRole('STUDENT');
+
+// Permite STUDENT ou PARENT
+if (!isset($_SESSION['role']) || !in_array($_SESSION['role'], ['STUDENT', 'PARENT'])) {
+    echo json_encode(['success' => false, 'message' => 'Acesso negado.']);
+    exit;
+}
 
 header('Content-Type: application/json; charset=utf-8');
 
@@ -10,7 +15,26 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-$studentId = $_SESSION['user_id'];
+$input = json_decode(file_get_contents('php://input'), true);
+
+if ($_SESSION['role'] === 'PARENT') {
+    if (empty($input['student_id'])) {
+        echo json_encode(['success' => false, 'message' => 'ID do aluno não fornecido.']);
+        exit;
+    }
+    $studentId = intval($input['student_id']);
+    
+    // Verifica se o pai é dono do aluno
+    $stmtCheck = $pdo->prepare("SELECT 1 FROM student_parents WHERE student_id = ? AND parent_id = ?");
+    $stmtCheck->execute([$studentId, $_SESSION['user_id']]);
+    if (!$stmtCheck->fetchColumn()) {
+        echo json_encode(['success' => false, 'message' => 'Você não tem permissão para bloquear a tag deste aluno.']);
+        exit;
+    }
+} else {
+    // Se for estudante, ele só pode bloquear a própria tag
+    $studentId = $_SESSION['user_id'];
+}
 
 try {
     // Pegar a tag ativa vinculada a este aluno
@@ -19,7 +43,7 @@ try {
     $tag = $stmt->fetch();
 
     if (!$tag) {
-        echo json_encode(['success' => false, 'message' => 'Nenhuma tag ativa encontrada para você neste momento.']);
+        echo json_encode(['success' => false, 'message' => 'Nenhuma tag ativa encontrada para este aluno neste momento.']);
         exit;
     }
 
