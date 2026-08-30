@@ -73,6 +73,8 @@ $userRoleLabel = ($_SESSION['access_level'] === 'ADMIN') ? 'Admin' : 'Operador';
 
 <!-- Mobile Scroll Menu (Global) -->
 <?php
+require_once __DIR__ . '/menu_items.php';
+
 if (!function_exists('checkMobilePermTop')) {
     function checkMobilePermTop($key) {
         $userLevel = $_SESSION['access_level'] ?? 'CASHIER';
@@ -87,29 +89,17 @@ if (!function_exists('checkMobilePermTop')) {
 <div class="md:hidden bg-white border-b border-slate-200 w-full overflow-x-auto scrollbar-hide z-20 shrink-0 shadow-sm relative">
     <div class="flex items-center gap-2 p-3 whitespace-nowrap">
         <?php 
-        if (!function_exists('renderMobileLinkTop')) {
-            function renderMobileLinkTop($perm, $url, $label, $icon, $current) {
-                if (!checkMobilePermTop($perm)) return;
-                $activeClass = $current == $url ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100';
-                echo "<a href='$url' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
-                echo "<i data-lucide='$icon' class='w-4 h-4'></i> $label";
-                echo "</a>";
-            }
-        }
         $cPage = basename($_SERVER['PHP_SELF']);
-        
-        renderMobileLinkTop('canViewDashboard', 'dashboard.php', 'Dashboard', 'layout-grid', $cPage);
-        renderMobileLinkTop('canManageSettings', 'settings.php', 'Config.', 'settings', $cPage);
-        renderMobileLinkTop('canManageFinancial', 'financial.php', 'Financ.', 'dollar-sign', $cPage);
-        renderMobileLinkTop('canManageStudents', 'students.php', 'Alunos', 'graduation-cap', $cPage);
-        renderMobileLinkTop('canManageParents', 'parents.php', 'Responsáveis', 'users', $cPage);
-        renderMobileLinkTop('canManageSettings', 'schedules.php', 'Turmas', 'clock', $cPage);
-        renderMobileLinkTop('canManagePreOrders', 'kitchen_dashboard.php', 'Cozinha', 'chef-hat', $cPage);
-        renderMobileLinkTop('canManagePreOrders', 'room_orders.php', 'Coleta', 'tablet-smartphone', $cPage);
-        renderMobileLinkTop('canManagePreOrders', 'dispatch.php', 'TV', 'monitor-speaker', $cPage);
-        renderMobileLinkTop('canManageTags', 'tags.php', 'Tags NFC', 'rss', $cPage);
-        renderMobileLinkTop('canManageTeam', 'team.php', 'Equipe', 'shield-check', $cPage);
-        renderMobileLinkTop('canViewLogs', 'logs.php', 'Auditoria', 'file-text', $cPage);
+        foreach ($navItems as $item):
+            if (!checkMobilePermTop($item['perm'])) continue;
+            
+            $activeClass = $cPage == $item['url'] ? 'bg-emerald-600 text-white shadow-md' : 'bg-slate-50 text-slate-600 border border-slate-100 hover:bg-slate-100';
+            $label = isset($item['mobileLabel']) ? $item['mobileLabel'] : $item['label'];
+            
+            echo "<a href='" . htmlspecialchars($item['url']) . "' class='px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 $activeClass'>";
+            echo "<i data-lucide='" . htmlspecialchars($item['icon']) . "' class='w-4 h-4'></i> " . htmlspecialchars($label);
+            echo "</a>";
+        endforeach;
         ?>
     </div>
 </div>
