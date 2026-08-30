@@ -112,7 +112,7 @@ function getRemoteVersion() {
 function downloadAndExtractUpdate(&$resp) {
     addLog($resp, "1. Baixando pacote...", 'info');
     
-    $zipUrl = "https://github.com/" . GITHUB_USER . "/" . GITHUB_REPO . "/archive/refs/heads/" . GITHUB_BRANCH . ".zip";
+    $zipUrl = "https://github.com/" . GITHUB_USER . "/" . GITHUB_REPO . "/archive/refs/heads/" . GITHUB_BRANCH . ".zip?nocache=" . time();
     $tempZip = __DIR__ . '/update_temp.zip';
     $extractPath = __DIR__ . '/update_temp_folder';
     
