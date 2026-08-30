@@ -246,7 +246,8 @@ function getMigrations() {
         
         // Self-Recharge Logic (Auto-Recarga)
         ['type'=>'col', 't'=>'students', 'c'=>'can_self_charge', 'sql'=>"ALTER TABLE students ADD COLUMN can_self_charge TINYINT(1) DEFAULT 0"],
-        ['type'=>'col', 't'=>'students', 'c'=>'recharge_config', 'sql'=>"ALTER TABLE students ADD COLUMN recharge_config LONGTEXT DEFAULT NULL"]
+        ['type'=>'col', 't'=>'students', 'c'=>'recharge_config', 'sql'=>"ALTER TABLE students ADD COLUMN recharge_config LONGTEXT DEFAULT NULL"],
+        ['type'=>'col', 't'=>'system_settings', 'c'=>'allow_student_self_recharge', 'sql'=>"INSERT INTO system_settings (setting_key, setting_value) VALUES ('allow_student_self_recharge', '1') ON DUPLICATE KEY UPDATE setting_key=setting_key"]
     ];
 }
 
