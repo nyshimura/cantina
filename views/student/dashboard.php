@@ -111,10 +111,15 @@ try {
     $products = $pdo->query("SELECT * FROM products WHERE active = 1 ORDER BY name")->fetchAll();
     
     $cutoff = null;
+    $endTime = null;
     if ($student['classroom_id']) {
-        $stmtClass = $pdo->prepare("SELECT m.cutoff_time FROM classrooms c JOIN meal_schedules m ON c.meal_schedule_id = m.id WHERE c.id = ?");
+        $stmtClass = $pdo->prepare("SELECT m.cutoff_time, m.end_time FROM classrooms c JOIN meal_schedules m ON c.meal_schedule_id = m.id WHERE c.id = ?");
         $stmtClass->execute([$student['classroom_id']]);
-        $cutoff = $stmtClass->fetchColumn();
+        $sch = $stmtClass->fetch();
+        if($sch) {
+            $cutoff = $sch['cutoff_time'];
+            $endTime = $sch['end_time'];
+        }
     }
 
 } catch (Exception $e) {
@@ -127,7 +132,7 @@ require __DIR__ . '/../../includes/header.php';
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script>
     function confirmBlockTag() {
-        if (confirm("ATENÇÃO: Tem certeza que perdeu sua pulseira?\nEla será bloqueada na mesma hora e ninguém poderá comprar lanches com ela até a escola entregar uma nova.")) {
+        showConfirm("ATENÇÃO: Tem certeza que perdeu sua pulseira?<br><br>Ela será bloqueada na mesma hora para compras.<br><br><span class='text-red-500 font-bold'>Nota: A aquisição de uma nova pulseira na secretaria irá gerar um custo.</span>", () => {
             fetch('../../api/block_tag.php', { method: 'POST' })
             .then(res => res.json())
             .then(data => {
@@ -135,7 +140,7 @@ require __DIR__ . '/../../includes/header.php';
                 if(data.success) setTimeout(() => location.reload(), 3000);
             })
             .catch(err => showAlert("Erro de conexão.", "error"));
-        }
+        });
     }
 </script>
 
@@ -143,7 +148,8 @@ require __DIR__ . '/../../includes/header.php';
     html, body { 
         background-color: #f8fafc; 
         overflow-x: hidden;
-        height: 100%;
+        overflow-y: auto !important;
+        min-height: 100vh;
     }
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
@@ -254,6 +260,13 @@ require __DIR__ . '/../../includes/header.php';
         </div>
 
         <div class="lg:col-span-8 flex flex-col gap-8">
+            <?php 
+            $now = date('H:i:s');
+            $canOrder = $cutoff && ($now <= $cutoff);
+            $isExpired = $endTime && ($now > $endTime);
+            ?>
+
+            <?php if (!$isExpired): ?>
             <!-- Nova Seção: Cardápio do Dia -->
             <div class="bg-white rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm relative overflow-hidden">
                 <div class="flex items-center justify-between mb-6">
@@ -269,11 +282,6 @@ require __DIR__ . '/../../includes/header.php';
                         </div>
                     </div>
                 </div>
-
-                <?php 
-                $now = date('H:i:s');
-                $canOrder = $cutoff && ($now <= $cutoff);
-                ?>
 
                 <?php if ($currentOrder): ?>
                     <!-- Já tem pedido hoje -->
@@ -358,6 +366,7 @@ require __DIR__ . '/../../includes/header.php';
                     </form>
                 <?php endif; ?>
             </div>
+            <?php endif; ?> <!-- FECHA isExpired -->
 
             <!-- Movimentações (antigo bg-white rounded-[2.5rem]...) -->
             <div class="bg-white rounded-[2.5rem] p-6 md:p-8 border border-slate-100 shadow-sm flex flex-col min-h-[400px]">
@@ -548,7 +557,7 @@ require __DIR__ . '/../../includes/header.php';
     const availableBalance = currentBalance; // Aluno não usa cheque especial no app
 
     function showAlert(message, type = 'info') {
-        document.getElementById('modalAlertMessage').textContent = message;
+        document.getElementById('modalAlertMessage').innerHTML = message;
         const iconContainer = document.getElementById('modalAlertIconContainer');
         const title = document.getElementById('modalAlertTitle');
         
@@ -561,7 +570,7 @@ require __DIR__ . '/../../includes/header.php';
     }
 
     function showConfirm(message, onConfirm) {
-        document.getElementById('modalConfirmMessage').textContent = message;
+        document.getElementById('modalConfirmMessage').innerHTML = message;
         const btn = document.getElementById('btnConfirmAction');
         btn.onclick = () => { closeModal('modalConfirm'); onConfirm(); };
         openModal('modalConfirm');

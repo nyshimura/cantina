@@ -11,10 +11,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     try {
         if ($action === 'save_schedule') {
+            $end_time = !empty($input['end_time']) ? $input['end_time'] : null;
             if (!empty($input['id'])) {
-                $pdo->prepare("UPDATE meal_schedules SET name=?, cutoff_time=? WHERE id=?")->execute([$input['name'], $input['cutoff_time'], $input['id']]);
+                $pdo->prepare("UPDATE meal_schedules SET name=?, cutoff_time=?, end_time=? WHERE id=?")->execute([$input['name'], $input['cutoff_time'], $end_time, $input['id']]);
             } else {
-                $pdo->prepare("INSERT INTO meal_schedules (name, cutoff_time) VALUES (?, ?)")->execute([$input['name'], $input['cutoff_time']]);
+                $pdo->prepare("INSERT INTO meal_schedules (name, cutoff_time, end_time) VALUES (?, ?, ?)")->execute([$input['name'], $input['cutoff_time'], $end_time]);
             }
         } elseif ($action === 'delete_schedule') {
             $pdo->prepare("DELETE FROM meal_schedules WHERE id=?")->execute([$input['id']]);
@@ -71,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 // Data fetching
 $schedules = $pdo->query("SELECT * FROM meal_schedules ORDER BY cutoff_time")->fetchAll();
-$classrooms = $pdo->query("SELECT c.*, m.name as schedule_name, m.cutoff_time FROM classrooms c LEFT JOIN meal_schedules m ON c.meal_schedule_id = m.id ORDER BY c.name")->fetchAll();
+$classrooms = $pdo->query("SELECT c.*, m.name as schedule_name, m.cutoff_time, m.end_time FROM classrooms c LEFT JOIN meal_schedules m ON c.meal_schedule_id = m.id ORDER BY c.name")->fetchAll();
 
 $pendingTransfers = $pdo->query("
     SELECT s.id, s.name as student_name, c_old.name as old_class, c_new.name as new_class 
@@ -135,7 +136,7 @@ require __DIR__ . '/../../includes/header.php';
                         <div class="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
                             <div>
                                 <div class="font-bold text-slate-800 text-sm"><?= htmlspecialchars($sch['name']) ?></div>
-                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-1"><i data-lucide="clock" class="w-3 h-3"></i> Limite: <?= substr($sch['cutoff_time'], 0, 5) ?></div>
+                                <div class="text-xs text-slate-500 flex items-center gap-1 mt-1"><i data-lucide="clock" class="w-3 h-3"></i> Limite: <?= substr($sch['cutoff_time'], 0, 5) ?><?= $sch['end_time'] ? ' | Fim: ' . substr($sch['end_time'], 0, 5) : '' ?></div>
                             </div>
                             <div class="flex gap-2">
                                 <button onclick='editSchedule(<?= json_encode($sch) ?>)' class="text-slate-400 hover:text-indigo-500"><i data-lucide="edit-2" class="w-4 h-4"></i></button>
@@ -186,7 +187,7 @@ require __DIR__ . '/../../includes/header.php';
                                     </div>
                                     <div class="text-xs font-medium <?= $cls['schedule_name'] ? 'text-indigo-500' : 'text-red-400' ?> flex items-center gap-1 mt-1">
                                         <i data-lucide="bell" class="w-3 h-3"></i> 
-                                        <?= $cls['schedule_name'] ? htmlspecialchars($cls['schedule_name']) . ' (Até ' . substr($cls['cutoff_time'], 0, 5) . ')' : 'Sem horário vinculado' ?>
+                                        <?= $cls['schedule_name'] ? htmlspecialchars($cls['schedule_name']) . ' (Até ' . substr($cls['cutoff_time'], 0, 5) . ($cls['end_time'] ? ' - Fim: ' . substr($cls['end_time'], 0, 5) : '') . ')' : 'Sem horário vinculado' ?>
                                     </div>
                                 </div>
                             </div>
@@ -220,9 +221,14 @@ require __DIR__ . '/../../includes/header.php';
                 <input type="text" id="sch_name" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10">
             </div>
             <div>
-                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Horário Limite (Cutoff)</label>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Horário Limite (Início do Intervalo)</label>
                 <input type="time" id="sch_time" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10">
                 <p class="text-xs text-slate-400 mt-2">Após esse horário, os alunos desta turma não poderão mais reservar/cancelar.</p>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Fim do Intervalo</label>
+                <input type="time" id="sch_end_time" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10">
+                <p class="text-xs text-slate-400 mt-2">Após esse horário, o pedido não retirado some da tela inicial do aluno.</p>
             </div>
             <button type="submit" class="w-full bg-emerald-500 text-white font-black py-4 rounded-xl shadow-lg shadow-emerald-500/30 hover:bg-emerald-600 transition-all uppercase tracking-widest text-sm mt-4">Salvar Horário</button>
         </form>
@@ -251,7 +257,7 @@ require __DIR__ . '/../../includes/header.php';
                 <select id="cls_schedule" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 font-bold text-slate-700 outline-none focus:border-indigo-500">
                     <option value="">Selecione o Horário...</option>
                     <?php foreach($schedules as $s): ?>
-                        <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (Até <?= substr($s['cutoff_time'], 0, 5) ?>)</option>
+                        <option value="<?= $s['id'] ?>"><?= htmlspecialchars($s['name']) ?> (Até <?= substr($s['cutoff_time'], 0, 5) ?><?= $s['end_time'] ? ' | Fim: ' . substr($s['end_time'], 0, 5) : '' ?>)</option>
                     <?php endforeach; ?>
                 </select>
             </div>
@@ -332,6 +338,7 @@ require __DIR__ . '/../../includes/header.php';
             document.getElementById('sch_id').value = '';
             document.getElementById('sch_name').value = '';
             document.getElementById('sch_time').value = '';
+            document.getElementById('sch_end_time').value = '';
             document.getElementById('scheduleModalTitle').innerText = 'Novo Horário';
         }
         if(id === 'modalClassroom') {
@@ -347,6 +354,7 @@ require __DIR__ . '/../../includes/header.php';
         document.getElementById('sch_id').value = sch.id;
         document.getElementById('sch_name').value = sch.name;
         document.getElementById('sch_time').value = sch.cutoff_time;
+        document.getElementById('sch_end_time').value = sch.end_time || '';
         document.getElementById('scheduleModalTitle').innerText = 'Editar Horário';
         openModal('modalSchedule');
     }
@@ -381,7 +389,8 @@ require __DIR__ . '/../../includes/header.php';
             action: 'save_schedule',
             id: document.getElementById('sch_id').value,
             name: document.getElementById('sch_name').value,
-            cutoff_time: document.getElementById('sch_time').value
+            cutoff_time: document.getElementById('sch_time').value,
+            end_time: document.getElementById('sch_end_time').value
         });
     }
 

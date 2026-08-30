@@ -120,7 +120,8 @@ require __DIR__ . '/../../includes/header.php';
     html, body { 
         background-color: #f8fafc; 
         overflow-x: hidden;
-        height: 100%;
+        overflow-y: auto !important;
+        min-height: 100vh;
     }
     ::-webkit-scrollbar { width: 8px; }
     ::-webkit-scrollbar-track { background: #f1f5f9; }
@@ -255,6 +256,8 @@ require __DIR__ . '/../../includes/header.php';
                     <span>Autorrecarga</span>
                     <i data-lucide="chevron-right" class="w-5 h-5"></i>
                 </div>
+                
+                <button onclick="confirmBlockTagParent(<?= $selectedId ?>)" class="w-full text-center text-xs font-bold text-red-500 hover:text-red-600 bg-red-50 hover:bg-red-100 transition-colors border border-red-100 rounded-xl mt-2 flex items-center justify-center gap-2 py-4 shadow-sm active:scale-95"><i data-lucide="shield-alert" class="w-4 h-4"></i> Bloquear Pulseira (Perda)</button>
             </div>
 
             <div class="bg-white rounded-[2.5rem] p-10 border border-slate-100 shadow-sm flex flex-col">
@@ -870,6 +873,55 @@ if(editMap) {
     window.addEventListener('touchend', () => { isDraggingAvatar = false; });
 }
 
+function confirmBlockTagParent(studentId) {
+    showConfirm("ATENÇÃO: Tem certeza que deseja bloquear a pulseira deste aluno por perda?<br><br>Ela será bloqueada na mesma hora para compras.<br><br><span class='text-red-500 font-bold'>Nota: A aquisição de uma nova pulseira na secretaria irá gerar um custo.</span>", () => {
+        fetch('../../api/block_tag.php', { 
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({student_id: studentId})
+        })
+        .then(res => res.json())
+        .then(data => {
+            showAlert(data.message, data.success ? 'success' : 'error');
+            if(data.success) setTimeout(() => location.reload(), 3000);
+        })
+        .catch(err => showAlert("Erro de conexão.", "error"));
+    });
+}
+
+lucide.createIcons();
+
+    function showAlert(message, type = 'info') {
+        document.getElementById('modalAlertMessage').innerHTML = message;
+        const icon = document.getElementById('modalAlertIcon');
+        const container = document.getElementById('modalAlertIconContainer');
+        const title = document.getElementById('modalAlertTitle');
+
+        if (type === 'success') {
+            icon.setAttribute('data-lucide', 'check-circle');
+            container.className = 'w-16 h-16 rounded-full bg-emerald-50 text-emerald-500 flex items-center justify-center mx-auto mb-4';
+            title.textContent = 'Sucesso!';
+        } else if (type === 'error') {
+            icon.setAttribute('data-lucide', 'alert-circle');
+            container.className = 'w-16 h-16 rounded-full bg-red-50 text-red-500 flex items-center justify-center mx-auto mb-4';
+            title.textContent = 'Erro!';
+        } else {
+            icon.setAttribute('data-lucide', 'info');
+            container.className = 'w-16 h-16 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center mx-auto mb-4';
+            title.textContent = 'Aviso';
+        }
+        lucide.createIcons();
+        openModal('modalAlert');
+    }
+
+    function showConfirm(message, onConfirm) {
+        document.getElementById('modalConfirmMessage').innerHTML = message;
+        const btn = document.getElementById('btnConfirmAction');
+        btn.onclick = () => { closeModal('modalConfirm'); onConfirm(); };
+        openModal('modalConfirm');
+    }
 </script>
+<div id="modalAlert" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative max-w-sm shadow-2xl text-center"><button onclick="closeModal('modalAlert')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="w-16 h-16 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center mx-auto mb-4" id="modalAlertIconContainer"><i data-lucide="info" class="w-8 h-8" id="modalAlertIcon"></i></div><h2 class="font-black text-slate-800 italic mb-2" id="modalAlertTitle">Aviso</h2><p class="text-sm font-medium text-slate-500 mb-6" id="modalAlertMessage"></p><button onclick="closeModal('modalAlert')" class="w-full bg-slate-800 text-white font-black py-4 rounded-2xl shadow-lg hover:bg-slate-900 transition-all uppercase tracking-widest text-xs">Entendi</button></div></div>
+<div id="modalConfirm" class="modal-overlay"><div class="modal-content bg-white rounded-[2.5rem] relative max-w-sm shadow-2xl text-center"><button onclick="closeModal('modalConfirm')" class="absolute right-6 top-6 text-slate-300 hover:text-slate-500"><i data-lucide="x"></i></button><div class="w-16 h-16 rounded-full bg-amber-50 text-amber-500 flex items-center justify-center mx-auto mb-4"><i data-lucide="help-circle" class="w-8 h-8"></i></div><h2 class="font-black text-slate-800 italic mb-2" id="modalConfirmTitle">Confirmação</h2><p class="text-sm font-medium text-slate-500 mb-6" id="modalConfirmMessage"></p><div class="flex gap-3"><button onclick="closeModal('modalConfirm')" class="flex-1 py-4 font-black text-slate-400 hover:text-slate-600 italic">Cancelar</button><button id="btnConfirmAction" class="flex-1 bg-amber-500 text-white font-black rounded-2xl shadow-lg hover:bg-amber-600 transition-all uppercase tracking-widest text-xs">Confirmar</button></div></div></div>
 </body>
 </html>
