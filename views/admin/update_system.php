@@ -14,7 +14,7 @@ require __DIR__ . '/../../includes/header.php';
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
     
     <div class="flex flex-1 overflow-hidden">
-        <?php include __DIR__ . '/../../includes/sidebar.php'; ?>
+        <?php include __DIR__ . '/../../includes/app_sidebar.php'; ?>
 
         <main class="flex-1 overflow-y-auto p-4 md:p-8 lg:p-12 pb-48 md:pb-12">
             <div class="max-w-3xl mx-auto">

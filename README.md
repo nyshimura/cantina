@@ -52,9 +52,3 @@ cd cantina
 ```bash 
 database.sql
 ```
-
-### 3. Login
-```bash 
-Login: admin@admin.com
-Senha: admin123
-```

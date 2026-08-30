@@ -91,7 +91,7 @@ require __DIR__ . '/../../includes/header.php';
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
     
     <div class="flex flex-1 overflow-hidden">
-        <?php include __DIR__ . '/../../includes/sidebar.php'; ?>
+        <?php include __DIR__ . '/../../includes/app_sidebar.php'; ?>
     <div class="flex-1 flex flex-col overflow-hidden">
         <header class="bg-white border-b border-slate-200 px-6 py-4 flex justify-between items-center shrink-0">
             <h1 class="text-2xl font-black text-slate-800 italic tracking-tight">Turmas & Horários</h1>

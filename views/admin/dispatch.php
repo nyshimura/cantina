@@ -47,7 +47,7 @@ require __DIR__ . '/../../includes/header.php';
 <div class="flex flex-col h-screen w-full overflow-hidden bg-slate-50">
     <?php include __DIR__ . '/../../includes/top_header.php'; ?>
     <div class="flex flex-1 overflow-hidden">
-        <?php include __DIR__ . '/../../includes/sidebar.php'; ?>
+        <?php include __DIR__ . '/../../includes/app_sidebar.php'; ?>
         
         <main class="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 relative">
             <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl border border-slate-200 shadow-sm gap-4 mb-6">
